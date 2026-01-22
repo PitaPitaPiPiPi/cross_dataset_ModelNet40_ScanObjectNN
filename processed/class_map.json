@@ -1,0 +1,187 @@
+{
+  "0": {
+    "dataset": "ModelNet",
+    "class_name": "airplane",
+    "global_id": 0
+  },
+  "1": {
+    "dataset": "ModelNet",
+    "class_name": "bathtub",
+    "global_id": 1
+  },
+  "2": {
+    "dataset": "ModelNet",
+    "class_name": "bottle",
+    "global_id": 2
+  },
+  "3": {
+    "dataset": "ModelNet",
+    "class_name": "bowl",
+    "global_id": 3
+  },
+  "4": {
+    "dataset": "ModelNet",
+    "class_name": "car",
+    "global_id": 4
+  },
+  "5": {
+    "dataset": "ModelNet",
+    "class_name": "cone",
+    "global_id": 5
+  },
+  "6": {
+    "dataset": "ModelNet",
+    "class_name": "cup",
+    "global_id": 6
+  },
+  "7": {
+    "dataset": "ModelNet",
+    "class_name": "curtain",
+    "global_id": 7
+  },
+  "8": {
+    "dataset": "ModelNet",
+    "class_name": "flower_pot",
+    "global_id": 8
+  },
+  "9": {
+    "dataset": "ModelNet",
+    "class_name": "glass_box",
+    "global_id": 9
+  },
+  "10": {
+    "dataset": "ModelNet",
+    "class_name": "guitar",
+    "global_id": 10
+  },
+  "11": {
+    "dataset": "ModelNet",
+    "class_name": "keyboard",
+    "global_id": 11
+  },
+  "12": {
+    "dataset": "ModelNet",
+    "class_name": "lamp",
+    "global_id": 12
+  },
+  "13": {
+    "dataset": "ModelNet",
+    "class_name": "laptop",
+    "global_id": 13
+  },
+  "14": {
+    "dataset": "ModelNet",
+    "class_name": "mantel",
+    "global_id": 14
+  },
+  "15": {
+    "dataset": "ModelNet",
+    "class_name": "night_stand",
+    "global_id": 15
+  },
+  "16": {
+    "dataset": "ModelNet",
+    "class_name": "person",
+    "global_id": 16
+  },
+  "17": {
+    "dataset": "ModelNet",
+    "class_name": "piano",
+    "global_id": 17
+  },
+  "18": {
+    "dataset": "ModelNet",
+    "class_name": "plant",
+    "global_id": 18
+  },
+  "19": {
+    "dataset": "ModelNet",
+    "class_name": "radio",
+    "global_id": 19
+  },
+  "20": {
+    "dataset": "ModelNet",
+    "class_name": "range_hood",
+    "global_id": 20
+  },
+  "21": {
+    "dataset": "ModelNet",
+    "class_name": "stairs",
+    "global_id": 21
+  },
+  "22": {
+    "dataset": "ModelNet",
+    "class_name": "tent",
+    "global_id": 22
+  },
+  "23": {
+    "dataset": "ModelNet",
+    "class_name": "tv_stand",
+    "global_id": 23
+  },
+  "24": {
+    "dataset": "ModelNet",
+    "class_name": "vase",
+    "global_id": 24
+  },
+  "25": {
+    "dataset": "ModelNet",
+    "class_name": "xbox",
+    "global_id": 25
+  },
+  "26": {
+    "dataset": "ScanObjectNN",
+    "class_name": "cabinet",
+    "global_id": 26
+  },
+  "27": {
+    "dataset": "ScanObjectNN",
+    "class_name": "chair",
+    "global_id": 27
+  },
+  "28": {
+    "dataset": "ScanObjectNN",
+    "class_name": "desk",
+    "global_id": 28
+  },
+  "29": {
+    "dataset": "ScanObjectNN",
+    "class_name": "display",
+    "global_id": 29
+  },
+  "30": {
+    "dataset": "ScanObjectNN",
+    "class_name": "door",
+    "global_id": 30
+  },
+  "31": {
+    "dataset": "ScanObjectNN",
+    "class_name": "shelf",
+    "global_id": 31
+  },
+  "32": {
+    "dataset": "ScanObjectNN",
+    "class_name": "table",
+    "global_id": 32
+  },
+  "33": {
+    "dataset": "ScanObjectNN",
+    "class_name": "bed",
+    "global_id": 33
+  },
+  "34": {
+    "dataset": "ScanObjectNN",
+    "class_name": "sink",
+    "global_id": 34
+  },
+  "35": {
+    "dataset": "ScanObjectNN",
+    "class_name": "sofa",
+    "global_id": 35
+  },
+  "36": {
+    "dataset": "ScanObjectNN",
+    "class_name": "toilet",
+    "global_id": 36
+  }
+}

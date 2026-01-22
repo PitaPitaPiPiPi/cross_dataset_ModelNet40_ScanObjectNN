@@ -1,0 +1,16 @@
+modelnet:
+  root: /path/to/ModelNet40
+  sample_surface_n: 20000
+scanobjectnn:
+  root: /path/to/h5_files
+  variant: main_split
+common:
+  target_n: 1024
+  fps_seed: 42
+  percentile_scale: 99
+  fps_backend: auto  # options: auto|pytorch3d|modelnet2_ops|numpy
+parallel:
+  workers: 8
+  chunk_size: 64
+logging:
+  level: INFO
