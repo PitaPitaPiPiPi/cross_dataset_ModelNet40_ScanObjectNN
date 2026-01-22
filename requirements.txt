@@ -9,3 +9,4 @@ torch
 pytorch3d
 # optional: modelnet2_ops for CUDA FPS
 modelnet2_ops
+matplotlib
