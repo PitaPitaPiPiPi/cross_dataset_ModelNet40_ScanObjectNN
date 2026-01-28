@@ -1,81 +1,84 @@
 #!/usr/bin/env python3
 import os
-import glob
 import argparse
-import numpy as np
-import json
+import glob
+import shutil
 from scripts.utils.logger import get_logger
 
 logger = get_logger('build_cross_sessions')
 
-def load_meta(json_path):
-    with open(json_path, 'r', encoding='utf-8') as f:
-        return json.load(f)
+CLASS_ID_MAP = [
+    {'class_id': 0, 'class_name': 'airplane', 'dataset': 'ModelNet'},
+    {'class_id': 1, 'class_name': 'bathtub', 'dataset': 'ModelNet'},
+    {'class_id': 2, 'class_name': 'bottle', 'dataset': 'ModelNet'},
+    {'class_id': 3, 'class_name': 'bowl', 'dataset': 'ModelNet'},
+    {'class_id': 4, 'class_name': 'car', 'dataset': 'ModelNet'},
+    {'class_id': 5, 'class_name': 'cone', 'dataset': 'ModelNet'},
+    {'class_id': 6, 'class_name': 'cup', 'dataset': 'ModelNet'},
+    {'class_id': 7, 'class_name': 'curtain', 'dataset': 'ModelNet'},
+    {'class_id': 8, 'class_name': 'flower pot', 'dataset': 'ModelNet'},
+    {'class_id': 9, 'class_name': 'glass box', 'dataset': 'ModelNet'},
+    {'class_id': 10, 'class_name': 'guitar', 'dataset': 'ModelNet'},
+    {'class_id': 11, 'class_name': 'keyboard', 'dataset': 'ModelNet'},
+    {'class_id': 12, 'class_name': 'lamp', 'dataset': 'ModelNet'},
+    {'class_id': 13, 'class_name': 'laptop', 'dataset': 'ModelNet'},
+    {'class_id': 14, 'class_name': 'mantel', 'dataset': 'ModelNet'},
+    {'class_id': 15, 'class_name': 'night stand', 'dataset': 'ModelNet'},
+    {'class_id': 16, 'class_name': 'person', 'dataset': 'ModelNet'},
+    {'class_id': 17, 'class_name': 'piano', 'dataset': 'ModelNet'},
+    {'class_id': 18, 'class_name': 'plant', 'dataset': 'ModelNet'},
+    {'class_id': 19, 'class_name': 'radio', 'dataset': 'ModelNet'},
+    {'class_id': 20, 'class_name': 'range hood', 'dataset': 'ModelNet'},
+    {'class_id': 21, 'class_name': 'stairs', 'dataset': 'ModelNet'},
+    {'class_id': 22, 'class_name': 'tent', 'dataset': 'ModelNet'},
+    {'class_id': 23, 'class_name': 'tv stand', 'dataset': 'ModelNet'},
+    {'class_id': 24, 'class_name': 'vase', 'dataset': 'ModelNet'},
+    {'class_id': 25, 'class_name': 'xbox', 'dataset': 'ModelNet'},
+    {'class_id': 26, 'class_name': 'Cabinet', 'dataset': 'ScanObjectNN'},
+    {'class_id': 27, 'class_name': 'Chair', 'dataset': 'ScanObjectNN'},
+    {'class_id': 28, 'class_name': 'Desk', 'dataset': 'ScanObjectNN'},
+    {'class_id': 29, 'class_name': 'Display', 'dataset': 'ScanObjectNN'},
+    {'class_id': 30, 'class_name': 'Door', 'dataset': 'ScanObjectNN'},
+    {'class_id': 31, 'class_name': 'Shelf', 'dataset': 'ScanObjectNN'},
+    {'class_id': 32, 'class_name': 'Table', 'dataset': 'ScanObjectNN'},
+    {'class_id': 33, 'class_name': 'Bed', 'dataset': 'ScanObjectNN'},
+    {'class_id': 34, 'class_name': 'Sink', 'dataset': 'ScanObjectNN'},
+    {'class_id': 35, 'class_name': 'Sofa', 'dataset': 'ScanObjectNN'},
+    {'class_id': 36, 'class_name': 'Toilet', 'dataset': 'ScanObjectNN'},
+]
 
-def gather_files_for_class(processed_root, ds_name, class_identifier, split):
-    pattern = os.path.join(processed_root, ds_name, split, f"*{class_identifier}*.npy")
-    files = glob.glob(pattern)
-    return files
+def gather_files_for_class(root_dir, class_name, split):
+    pattern = os.path.join(root_dir, class_name, split, '*.npy')
+    return glob.glob(pattern)
 
-def build_session_npy(session_idx, mappings, processed_root, out_dir, split='train'):
-    X_list = []
-    Y_list = []
-    meta_lines = []
-    for gid in mappings:
-        # mapping entry is a dict {dataset, class_name, global_id} or just global_id int
-        if isinstance(gid, dict):
-            ds = gid['dataset']
-            cname = gid['class_name']
-            glob_id = int(gid['global_id'])
-        else:
-            raise ValueError('mapping entries must be dicts')
-        files = gather_files_for_class(processed_root, ds, cname, split)
-        for f in files:
-            pts = np.load(f)
-            meta = load_meta(f.replace('.npy', '.json'))
-            X_list.append(pts.astype(np.float32))
-            Y_list.append(glob_id)
-            meta_aug = dict(**meta)
-            meta_aug.update(dict(global_id=glob_id, session=session_idx, orig_split=split))
-            meta_lines.append(json.dumps(meta_aug, ensure_ascii=False))
-    if len(X_list) == 0:
-        logger.warning(f"No samples for session {session_idx} {split}")
-        return
-    X = np.stack(X_list)
-    Y = np.array(Y_list, dtype=np.int64)
+def copy_class_split(class_id, class_name, split, src_root, out_root):
+    files = gather_files_for_class(src_root, class_name, split)
+    if len(files) == 0:
+        logger.warning(f"No samples for class {class_id} ({class_name}) split={split}")
+        return 0
+    out_dir = os.path.join(out_root, 'modelnet_scanobjectnn', str(class_id), split)
     os.makedirs(out_dir, exist_ok=True)
-    np.save(os.path.join(out_dir, f"{split}_data.npy"), X)
-    np.save(os.path.join(out_dir, f"{split}_labels.npy"), Y)
-    with open(os.path.join(out_dir, f"{split}_meta.jsonl"), 'w', encoding='utf-8') as f:
-        f.write('\n'.join(meta_lines))
-    logger.info(f"Wrote {out_dir} with {len(X)} samples for {split}")
+    for f in files:
+        dst = os.path.join(out_dir, os.path.basename(f))
+        shutil.copy2(f, dst)
+    logger.info(f"Copied {len(files)} files for class {class_id} split={split}")
+    return len(files)
 
-def build_all_sessions(processed_root, sessions_json, out_root, split='train'):
-    sessions_obj = json.load(open(sessions_json, 'r', encoding='utf-8'))
-    sessions = sessions_obj.get('sessions', [])
-    cumulative = []
-    for s in sessions:
-        session_id = s['session_id']
-        new_classes = s['train_classes']
-        # new_classes in sessions_json are integer global_ids; we need dataset/class_name mapping
-        # Expect processed_root to have a class_map.json which maps global_id -> {dataset, class_name}
-        class_map_path = os.path.join(processed_root, 'class_map.json')
-        if not os.path.exists(class_map_path):
-            raise FileNotFoundError('class_map.json not found in processed_root. It must map global_id->(dataset,class_name).')
-        class_map = json.load(open(class_map_path, 'r', encoding='utf-8'))
-        mappings = [class_map[str(gid)] for gid in new_classes]
-        cumulative.extend(mappings)
-        out_dir = os.path.join(out_root, 'cross_sessions', f"session{session_id}")
-        # build train: only new_classes
-        build_session_npy(session_id, mappings, processed_root, out_dir, split='train')
-        # build test: cumulative classes up to this session
-        build_session_npy(session_id, cumulative, processed_root, out_dir, split='test')
+def build_cross_dataset(modelnet_root, scanobjectnn_root, out_root):
+    for entry in CLASS_ID_MAP:
+        class_id = entry['class_id']
+        class_name = entry['class_name']
+        ds = entry['dataset']
+        src_root = modelnet_root if ds == 'ModelNet' else scanobjectnn_root
+        class_dir = class_name.replace(' ', '_') if ds == 'ModelNet' else class_name
+        copy_class_split(class_id, class_dir, 'train', src_root, out_root)
+        copy_class_split(class_id, class_dir, 'test', src_root, out_root)
 
 if __name__ == '__main__':
     p = argparse.ArgumentParser()
-    p.add_argument('--processed_root', required=True)
-    p.add_argument('--sessions_json', required=True)
+    p.add_argument('--modelnet_root', required=True)
+    p.add_argument('--scanobjectnn_root', required=True)
     p.add_argument('--out_root', required=True)
     args = p.parse_args()
     logger = get_logger('build_cross_sessions', log_file=os.path.join(args.out_root, 'build_cross_sessions.log'))
-    build_all_sessions(args.processed_root, args.sessions_json, args.out_root)
+    build_cross_dataset(args.modelnet_root, args.scanobjectnn_root, args.out_root)

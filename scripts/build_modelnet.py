@@ -45,7 +45,7 @@ def walk_and_process(modelnet_root, out_root, sample_surface_n, target_n, percen
             parts = rel.split(os.sep)
             class_name = parts[0]
             split = parts[1]
-            out_dir = os.path.join(out_root, 'ModelNet', split)
+            out_dir = os.path.join(out_root, 'ModelNet', class_name, split)
             os.makedirs(out_dir, exist_ok=True)
             futures.append(exe.submit(process_one_off, off, out_dir, sample_surface_n, target_n, percentile, seed, fps_backend))
         for fut in as_completed(futures):

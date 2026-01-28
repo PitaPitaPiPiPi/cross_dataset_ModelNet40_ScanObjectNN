@@ -6,7 +6,7 @@
 
 * 共通の前処理（中心化・正規化・サンプリング）
 * 共通フォーマット（`.npy`）
-* **継続学習（Continual Learning）を前提とした session / train / test 構造**
+* **class_id ベースの train / test 構造**
 
 に統一し、**クロスデータセット実験**（例: ModelNet→ScanObjectNN, ScanObjectNN→ModelNet）を再現性高く構築することを目的としています。
 
@@ -54,9 +54,10 @@ raw_datasets/
 ```
 raw_datasets/
   scanobjectnn/
-    main_split/
-      training_objectdataset.h5
-      test_objectdataset.h5
+    h5_files/
+      main_split_nobg/
+        training_objectdataset.h5
+        test_objectdataset.h5
 ```
 
 ※ クラス順は **公式定義順を固定で使用** します。
@@ -91,12 +92,15 @@ raw_datasets/
 * dtype: `float32`
 
 ```
-processed/modelnet40/
-  train/
-    airplane/xxx.npy
-    chair/yyy.npy
-  test/
-    airplane/zzz.npy
+out_root/
+  ModelNet/
+    airplane/
+      train/*.npy
+      test/*.npy
+    chair/
+      train/*.npy
+      test/*.npy
+    ... (40 classes)
 ```
 
 ### ScanObjectNN → `.npy`
@@ -106,48 +110,81 @@ processed/modelnet40/
 * 形状: `(P, 3)`
 
 ```
-processed/scanobjectnn/
-  train/
-    class_00/000123.npy
-  test/
-    class_00/000987.npy
+out_root/
+  ScanObjectNN/
+    Bag/
+      train/*.npy
+      test/*.npy
+    Bed/
+      train/*.npy
+      test/*.npy
+    ... (15 classes)
 ```
 
 ---
-
-## クロスデータセット構築 / Cross-Dataset Sessions
+## クロスデータセット構築 / Cross-Dataset (class_id)
 
 `.npy` 化された両データセットを用いて、
-**継続学習用 session データ** を生成します。
+**class_id 単位の train / test 構造** を生成します。
 
 ### 出力データ
 
 ```
-cross_dataset/
-  sessions/
-    session_00/
-      train.npy
-      test.npy
-    session_01/
-      train.npy
-      test.npy
+out_root/
+  modelnet_scanobjectnn/
+    0/
+      train/*.npy
+      test/*.npy
+    1/
+      train/*.npy
+      test/*.npy
+    ...
+    36/
+      train/*.npy
+      test/*.npy
 ```
 
-#### train.npy / test.npy の中身
+### class_id 対応表
 
-* 型: `dict`
-* 内容:
-
-```python
-{
-  "points": np.ndarray (N, P, 3),
-  "labels": np.ndarray (N,),
-  "dataset_ids": np.ndarray (N,)  # modelnet or scanobjectnn
-}
-```
-
-* `dataset_ids` により、クロスドメイン実験時の識別が可能
-* `cross_sessions.npy` は **session単位で自動生成** されます
+* ModelNet
+  * 0: airplane
+  * 1: bathtub
+  * 2: bottle
+  * 3: bowl
+  * 4: car
+  * 5: cone
+  * 6: cup
+  * 7: curtain
+  * 8: flower pot
+  * 9: glass box
+  * 10: guitar
+  * 11: keyboard
+  * 12: lamp
+  * 13: laptop
+  * 14: mantel
+  * 15: night stand
+  * 16: person
+  * 17: piano
+  * 18: plant
+  * 19: radio
+  * 20: range hood
+  * 21: stairs
+  * 22: tent
+  * 23: tv stand
+  * 24: vase
+  * 25: xbox
+* ScanObjectNN
+  * 26: Cabinet
+  * 27: Chair
+  * 28: Desk
+  * 29: Display
+  * 30: Door
+  * 31: Shelf
+  * 32: Table
+  * 33: Bed
+  * 34: Sink
+  * 35: Sofa
+  * 36: Toilet
 
 ---
 
@@ -168,19 +205,60 @@ CUDA を使用する場合:
 
 ## 実行手順 / How to Run
 
-### 1. `.off` / `.h5` → `.npy`
+### 1. ModelNet40 → `.npy`
 
 ```bash
-python scripts/build_modelnet40.py
-python scripts/build_scanobjectnn.py
+python -m scripts/build_modelnet \
+  --modelnet_root raw_datasets/modelnet40 \
+  --out_root outputs
 ```
 
-### 2. クロスデータセット生成
+主なオプション:
+
+* `--modelnet_root`（必須）: ModelNet40 のルート
+* `--out_root`（必須）: 出力先（例: outputs）
+* `--sample_surface_n`: サンプリング元点数（既定: 20000）
+* `--target_n`: 生成点数（既定: 1024）
+* `--percentile`: 正規化のスケール計算に使うパーセンタイル（既定: 99.0）
+* `--workers`: 並列数（既定: 4）
+* `--seed`: 乱数シード（既定: 42）
+* `--fps_backend`: FPS backend（既定: auto）
+
+### 2. ScanObjectNN → `.npy`
 
 ```bash
-python scripts/build_cross_dataset.py
+python -m scripts/build_scanobjectnn \
+  --h5_root raw_datasets/scanobjectnn/h5_files \
+  --out_root outputs
 ```
 
+主なオプション:
+
+* `--h5_root`（必須）: `h5_files` のルート
+* `--out_root`（必須）: 出力先（例: outputs）
+* `--split_dir`: 既定 `main_split_nobg`
+* `--train_h5`: 既定 `training_objectdataset.h5`
+* `--test_h5`: 既定 `test_objectdataset.h5`
+* `--target_n`: 生成点数（既定: 1024）
+* `--percentile`: 正規化のスケール計算に使うパーセンタイル（既定: 99.0）
+* `--workers`: 並列数（既定: 4）
+* `--seed`: 乱数シード（既定: 42）
+* `--fps_backend`: FPS backend（既定: auto）
+
+### 3. クロスデータセット生成（class_id 単位）
+
+```bash
+python -m scripts/build_cross_sessions \
+  --modelnet_root outputs/ModelNet \
+  --scanobjectnn_root outputs/ScanObjectNN \
+  --out_root outputs
+```
+
+主なオプション:
+
+* `--modelnet_root`（必須）: ModelNet の `.npy` 出力ルート
+* `--scanobjectnn_root`（必須）: ScanObjectNN の `.npy` 出力ルート
+* `--out_root`（必須）: 出力先（例: outputs）
 ログは `logs/` 以下に自動保存されます。
 
 ---
