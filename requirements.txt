@@ -5,8 +5,8 @@ tqdm
 PyYAML
 open3d
 # optional, but recommended if you want GPU FPS
-torch
-pytorch3d
+#torch
+#pytorch3d
 # optional: modelnet2_ops for CUDA FPS
-modelnet2_ops
+#modelnet2_ops
 matplotlib
