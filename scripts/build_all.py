@@ -3,7 +3,7 @@ import argparse
 import os
 import yaml
 from scripts.utils.logger import get_logger
-from scripts.build_modelnet import walk_and_process
+from cross_dataset_ModelNet40_ScanObjectNN.scripts.build_modelnet import walk_and_process
 from scripts.build_scanobjectnn import process_h5_file
 from scripts.build_cross_sessions import build_all_sessions
 import glob

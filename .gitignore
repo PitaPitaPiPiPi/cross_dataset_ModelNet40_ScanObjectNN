@@ -1,0 +1,15 @@
+# Python cache
+__pycache__/
+*.pyc
+
+# Dataset / experiment outputs
+data/
+outputs/
+y/
+
+# External dependencies (local only)
+Pointnet2_PyTorch/
+
+# Environment
+.env
+.micromamba/

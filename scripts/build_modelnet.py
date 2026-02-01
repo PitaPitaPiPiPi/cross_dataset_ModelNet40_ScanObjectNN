@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+
+#python -m scripts.build_modelnet --modelnet_root /home/kita/Desktop/master-projects/make_datasets/cross_dataset_ModelNet40_ScanObjectNN/data/ModelNet40 --out_root /home/kita/Desktop/master-projects/make_datasets/cross_dataset_ModelNet40_ScanObjectNN/outputs --target_n 1024
+
 import os
 import glob
 import argparse
