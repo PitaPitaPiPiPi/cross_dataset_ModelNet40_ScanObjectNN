@@ -1,90 +1,78 @@
 #!/usr/bin/env python3
 """
-Visualize and verify cross-session dataset structure.
+Visualize and verify class_id-based cross-dataset structure.
 
-This script reads cross_sessions outputs for a given session and prints a short
-summary table (base classes, novel classes, tasks, counts) and saves simple
-bar charts describing sample counts per class for train and test splits.
+This script reads modelnet_scanobjectnn outputs and saves simple bar charts
+describing sample counts per class_id for train and test splits.
 
-Outputs (saved under out_root/cross_sessions/session{ID}/visualization/):
+Outputs (saved under out_root/modelnet_scanobjectnn/visualization/):
  - train_class_counts.png
  - test_class_counts.png
 
 Usage example:
 python scripts/visualize_cross_sessions.py \
-  --out_root outputs/modelnet_scanobject_v1 \
-  --session_id 1 \
-  --sessions configs/sessions.json
+    --out_root outputs
 """
 import os
 import argparse
-import numpy as np
-import json
-from collections import Counter
+import glob
 import matplotlib.pyplot as plt
 from scripts.utils.logger import get_logger
 
 logger = get_logger('visualize_cross_sessions')
 
-def load_session_files(out_root, session_id):
-    base = os.path.join(out_root, 'cross_sessions', f'session{session_id}')
-    train_data_p = os.path.join(base, 'train_data.npy')
-    train_labels_p = os.path.join(base, 'train_labels.npy')
-    train_meta_p = os.path.join(base, 'train_meta.jsonl')
-    test_data_p = os.path.join(base, 'test_data.npy')
-    test_labels_p = os.path.join(base, 'test_labels.npy')
-    test_meta_p = os.path.join(base, 'test_meta.jsonl')
-    for p in [train_data_p, train_labels_p, test_data_p, test_labels_p]:
-        if not os.path.exists(p):
-            raise FileNotFoundError(f"Required file not found: {p}")
-    train_labels = np.load(train_labels_p)
-    test_labels = np.load(test_labels_p)
-    return {
-        'train_labels': train_labels,
-        'test_labels': test_labels,
-        'train_data_path': train_data_p,
-        'test_data_path': test_data_p,
-        'train_meta': train_meta_p if os.path.exists(train_meta_p) else None,
-        'test_meta': test_meta_p if os.path.exists(test_meta_p) else None
-    }
+CLASS_ID_MAP = [
+    {'class_id': 0, 'class_name': 'airplane', 'dataset': 'ModelNet'},
+    {'class_id': 1, 'class_name': 'bathtub', 'dataset': 'ModelNet'},
+    {'class_id': 2, 'class_name': 'bottle', 'dataset': 'ModelNet'},
+    {'class_id': 3, 'class_name': 'bowl', 'dataset': 'ModelNet'},
+    {'class_id': 4, 'class_name': 'car', 'dataset': 'ModelNet'},
+    {'class_id': 5, 'class_name': 'cone', 'dataset': 'ModelNet'},
+    {'class_id': 6, 'class_name': 'cup', 'dataset': 'ModelNet'},
+    {'class_id': 7, 'class_name': 'curtain', 'dataset': 'ModelNet'},
+    {'class_id': 8, 'class_name': 'flower pot', 'dataset': 'ModelNet'},
+    {'class_id': 9, 'class_name': 'glass box', 'dataset': 'ModelNet'},
+    {'class_id': 10, 'class_name': 'guitar', 'dataset': 'ModelNet'},
+    {'class_id': 11, 'class_name': 'keyboard', 'dataset': 'ModelNet'},
+    {'class_id': 12, 'class_name': 'lamp', 'dataset': 'ModelNet'},
+    {'class_id': 13, 'class_name': 'laptop', 'dataset': 'ModelNet'},
+    {'class_id': 14, 'class_name': 'mantel', 'dataset': 'ModelNet'},
+    {'class_id': 15, 'class_name': 'night stand', 'dataset': 'ModelNet'},
+    {'class_id': 16, 'class_name': 'person', 'dataset': 'ModelNet'},
+    {'class_id': 17, 'class_name': 'piano', 'dataset': 'ModelNet'},
+    {'class_id': 18, 'class_name': 'plant', 'dataset': 'ModelNet'},
+    {'class_id': 19, 'class_name': 'radio', 'dataset': 'ModelNet'},
+    {'class_id': 20, 'class_name': 'range hood', 'dataset': 'ModelNet'},
+    {'class_id': 21, 'class_name': 'stairs', 'dataset': 'ModelNet'},
+    {'class_id': 22, 'class_name': 'tent', 'dataset': 'ModelNet'},
+    {'class_id': 23, 'class_name': 'tv stand', 'dataset': 'ModelNet'},
+    {'class_id': 24, 'class_name': 'vase', 'dataset': 'ModelNet'},
+    {'class_id': 25, 'class_name': 'xbox', 'dataset': 'ModelNet'},
+    {'class_id': 26, 'class_name': 'Cabinet', 'dataset': 'ScanObjectNN'},
+    {'class_id': 27, 'class_name': 'Chair', 'dataset': 'ScanObjectNN'},
+    {'class_id': 28, 'class_name': 'Desk', 'dataset': 'ScanObjectNN'},
+    {'class_id': 29, 'class_name': 'Display', 'dataset': 'ScanObjectNN'},
+    {'class_id': 30, 'class_name': 'Door', 'dataset': 'ScanObjectNN'},
+    {'class_id': 31, 'class_name': 'Shelf', 'dataset': 'ScanObjectNN'},
+    {'class_id': 32, 'class_name': 'Table', 'dataset': 'ScanObjectNN'},
+    {'class_id': 33, 'class_name': 'Bed', 'dataset': 'ScanObjectNN'},
+    {'class_id': 34, 'class_name': 'Sink', 'dataset': 'ScanObjectNN'},
+    {'class_id': 35, 'class_name': 'Sofa', 'dataset': 'ScanObjectNN'},
+    {'class_id': 36, 'class_name': 'Toilet', 'dataset': 'ScanObjectNN'},
+]
 
-def read_sessions_json(sessions_json):
-    with open(sessions_json, 'r', encoding='utf-8') as f:
-        obj = json.load(f)
-    sessions = obj.get('sessions', [])
-    return sessions
+def class_label(entry):
+    return f"{entry['class_id']}:{entry['class_name']}"
 
-def compute_summary(sessions, session_idx, train_labels, test_labels):
-    # sessions: list of {session_id, train_classes}
-    # session_idx is the session number (1-based)
-    # base classes = classes in session 1
-    base_classes = set(sessions[0]['train_classes'])
-    novel_classes = set()
-    for s in sessions[1:]:
-        novel_classes.update(s['train_classes'])
-    # tasks = number of sessions
-    tasks = len(sessions)
-    # compute counts
-    train_in_base = int(np.sum(np.isin(train_labels, list(base_classes))))
-    test_in_base = int(np.sum(np.isin(test_labels, list(base_classes))))
-    test_in_novel = int(np.sum(np.isin(test_labels, list(novel_classes))))
-    summary = {
-        'Base Classes': len(base_classes),
-        'Novel Classes': len(novel_classes),
-        'Tasks': tasks,
-        'Train in Base': train_in_base,
-        'Test in Base': test_in_base,
-        'Test in Novel': test_in_novel
-    }
-    return summary, base_classes, novel_classes
+def count_files_for_class(out_root, class_id, split):
+    class_dir = os.path.join(out_root, 'modelnet_scanobjectnn', str(class_id), split)
+    return len(glob.glob(os.path.join(class_dir, '*.npy')))
 
-def plot_counts(labels, out_png, title):
-    ctr = Counter(labels.tolist())
-    classes = sorted(ctr.keys())
-    counts = [ctr[c] for c in classes]
-    plt.figure(figsize=(10,4))
-    plt.bar(range(len(classes)), counts)
-    plt.xlabel('class (sorted id)')
+def plot_counts(class_ids, counts, labels, out_png, title):
+    plt.figure(figsize=(14, 4))
+    plt.bar(range(len(class_ids)), counts)
+    plt.xticks(range(len(class_ids)), labels, rotation=45, ha='right', fontsize=8)
+    plt.xlabel('class_id:class_name')
     plt.ylabel('sample count')
     plt.title(title)
     plt.tight_layout()
@@ -92,33 +80,34 @@ def plot_counts(labels, out_png, title):
     plt.close()
 
 def main(args):
-    sess = read_sessions_json(args.sessions)
-    sess_map = {s['session_id']: s for s in sess}
-    if args.session_id not in sess_map:
-        raise ValueError('session_id not found in sessions.json')
-    data = load_session_files(args.out_root, args.session_id)
-    train_labels = data['train_labels']
-    test_labels = data['test_labels']
-    summary, base_classes, novel_classes = compute_summary(sess, args.session_id, train_labels, test_labels)
-    print('=== Session Summary ===')
-    for k,v in summary.items():
-        print(f'{k:15s}: {v}')
-    # create visualization folder
-    viz_dir = args.out_dir if args.out_dir else os.path.join(args.out_root, 'cross_sessions', f'session{args.session_id}', 'visualization')
+    base_dir = os.path.join(args.out_root, 'modelnet_scanobjectnn')
+    if not os.path.isdir(base_dir):
+        raise FileNotFoundError(f"modelnet_scanobjectnn not found under: {args.out_root}")
+
+    class_ids = [e['class_id'] for e in CLASS_ID_MAP]
+    labels = [class_label(e) for e in CLASS_ID_MAP]
+    train_counts = [count_files_for_class(args.out_root, cid, 'train') for cid in class_ids]
+    test_counts = [count_files_for_class(args.out_root, cid, 'test') for cid in class_ids]
+
+    total_train = sum(train_counts)
+    total_test = sum(test_counts)
+    print('=== Dataset Summary ===')
+    print(f'Train samples : {total_train}')
+    print(f'Test samples  : {total_test}')
+
+    viz_dir = args.out_dir if args.out_dir else os.path.join(args.out_root, 'modelnet_scanobjectnn', 'visualization')
     os.makedirs(viz_dir, exist_ok=True)
-    # plots
+
     train_png = os.path.join(viz_dir, 'train_class_counts.png')
     test_png = os.path.join(viz_dir, 'test_class_counts.png')
-    plot_counts(train_labels, train_png, f'Session {args.session_id} Train Class Counts')
-    plot_counts(test_labels, test_png, f'Session {args.session_id} Test Class Counts')
+    plot_counts(class_ids, train_counts, labels, train_png, 'Train Class Counts')
+    plot_counts(class_ids, test_counts, labels, test_png, 'Test Class Counts')
     print(f'Plots saved to: {viz_dir}')
     print('Done.')
 
 if __name__ == '__main__':
     p = argparse.ArgumentParser()
-    p.add_argument('--out_root', required=True, help='output root where cross_sessions/ is located')
-    p.add_argument('--session_id', type=int, required=True)
-    p.add_argument('--sessions', required=True, help='path to configs/sessions.json')
+    p.add_argument('--out_root', required=True, help='output root where modelnet_scanobjectnn/ is located')
     p.add_argument('--out_dir', default=None, help='optional explicit visualization output dir')
     args = p.parse_args()
     main(args)

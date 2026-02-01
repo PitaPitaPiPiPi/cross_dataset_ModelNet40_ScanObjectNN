@@ -284,26 +284,20 @@ python -m scripts/build_cross_sessions \
 
 ## Visualization / クロスデータセット構造の可視化
 
-生成されたクロスデータセットが期待どおりの構造・クラス分布になっているかを確認するための可視化スクリプトを同梱しています。スクリプトは以下の場所に配置してください:
-
-```
-pointcloud-cross-dataset-builder/scripts/visualize_cross_sessions.py
-```
+生成されたクロスデータセットが期待どおりの構造・クラス分布になっているかを確認するための可視化スクリプトを同梱しています。
 
 ### 使い方（例）
 
-リポジトリルートから実行します。`out_root` は `build_all.py` の `--out` と同じ出力先を指定してください。
+リポジトリルートから実行します。`out_root` は `modelnet_scanobjectnn/` が置かれている出力先を指定してください。
 
 ```bash
 python scripts/visualize_cross_sessions.py \
-  --out_root outputs/modelnet_scanobject_v1 \
-  --session_id 1 \
-  --sessions configs/sessions.json
+  --out_root outputs
 ```
 
 ### 出力
 
-指定した session の下に `visualization/` フォルダが作られ、次のファイルが保存されます:
+`out_root/modelnet_scanobjectnn/visualization/` に次のファイルが保存されます:
 
 * `train_class_counts.png` — train のクラスごとのサンプル数の棒グラフ
 * `test_class_counts.png` — test のクラスごとのサンプル数の棒グラフ
@@ -311,13 +305,9 @@ python scripts/visualize_cross_sessions.py \
 また、コンソールには簡潔なサマリが表示されます（例）：
 
 ```
-=== Session Summary ===
-Base Classes    : 26
-Novel Classes   : 11
-Tasks           : 4
-Train in Base   : 4999
-Test in Base    : 1496
-Test in Novel   : 475
+=== Dataset Summary ===
+Train samples : 00000
+Test samples  : 00000
 ```
 
 ### 依存パッケージ
@@ -330,7 +320,7 @@ pip install -r requirements.txt
 
 ### 注意点
 
-* スクリプトは `out_root/cross_sessions/session{ID}/` に `train_data.npy` / `train_labels.npy` / `test_data.npy` / `test_labels.npy` が存在することを前提とします。これらが存在しない場合は先に `build_cross_sessions.py` を実行してください。
+* スクリプトは `out_root/modelnet_scanobjectnn/{class_id}/{train|test}/*.npy` が存在することを前提とします。これらが存在しない場合は先に `build_cross_sessions.py` を実行してください。
 * 必要なら `--out_dir` オプションで可視化画像の出力先を明示できます。
 
 ---
