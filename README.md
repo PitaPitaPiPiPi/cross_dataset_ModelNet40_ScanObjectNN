@@ -76,8 +76,8 @@ raw_datasets/
    * 最大半径で割り、単位球内に収める
 3. **サンプリング (Sampling)**
 
-   * FPS (Farthest Point Sampling)
-   * CUDA 前提実装（CPU fallback あり）
+  * ModelNet40 はメッシュから 10000 点を抽出
+  * ScanObjectNN は元データ（2048 点）をそのまま使用
 
 ---
 
@@ -217,12 +217,9 @@ python -m scripts/build_modelnet \
 
 * `--modelnet_root`（必須）: ModelNet40 のルート
 * `--out_root`（必須）: 出力先（例: outputs）
-* `--sample_surface_n`: サンプリング元点数（既定: 20000）
-* `--target_n`: 生成点数（既定: 1024）
+* `--sample_surface_n`: サンプリング元点数（既定: 10000）
 * `--percentile`: 正規化のスケール計算に使うパーセンタイル（既定: 99.0）
 * `--workers`: 並列数（既定: 4）
-* `--seed`: 乱数シード（既定: 42）
-* `--fps_backend`: FPS backend（既定: auto）
 
 ### 2. ScanObjectNN → `.npy`
 
@@ -239,11 +236,8 @@ python -m scripts/build_scanobjectnn \
 * `--split_dir`: 既定 `main_split_nobg`
 * `--train_h5`: 既定 `training_objectdataset.h5`
 * `--test_h5`: 既定 `test_objectdataset.h5`
-* `--target_n`: 生成点数（既定: 1024）
 * `--percentile`: 正規化のスケール計算に使うパーセンタイル（既定: 99.0）
 * `--workers`: 並列数（既定: 4）
-* `--seed`: 乱数シード（既定: 42）
-* `--fps_backend`: FPS backend（既定: auto）
 
 ### 3. クロスデータセット生成（class_id 単位）
 

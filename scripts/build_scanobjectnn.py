@@ -27,7 +27,7 @@ SCANOBJECTNN_CLASS_NAMES = [
 ]
 
 def process_single_sample(args_tuple):
-    (h5_path, idx, out_root, split, target_n, percentile, seed, fps_backend) = args_tuple
+    (h5_path, idx, out_root, split, percentile) = args_tuple
     logger = get_logger('build_scanobjectnn')
     try:
         with h5py.File(h5_path, 'r') as f:
@@ -49,12 +49,12 @@ def process_single_sample(args_tuple):
         logger.exception(f"Failed sample {h5_path} idx {idx}: {e}")
         return None
 
-def process_h5_file(h5_path, out_root, split, target_n, percentile, workers, chunk_size, seed, fps_backend='auto'):
+def process_h5_file(h5_path, out_root, split, percentile, workers, chunk_size):
     logger = get_logger('build_scanobjectnn')
     try:
         with h5py.File(h5_path, 'r') as f:
             N = f['data'].shape[0]
-        args_list = [(h5_path, i, out_root, split, target_n, percentile, seed, fps_backend) for i in range(N)]
+        args_list = [(h5_path, i, out_root, split, percentile) for i in range(N)]
         with ProcessPoolExecutor(max_workers=workers) as exe:
             futures = [exe.submit(process_single_sample, args) for args in args_list]
             for fut in as_completed(futures):
@@ -70,12 +70,9 @@ if __name__ == '__main__':
     p.add_argument('--split_dir', default='main_split_nobg')
     p.add_argument('--train_h5', default='training_objectdataset.h5')
     p.add_argument('--test_h5', default='test_objectdataset.h5')
-    p.add_argument('--target_n', type=int, default=1024)
     p.add_argument('--percentile', type=float, default=99.0)
     p.add_argument('--workers', type=int, default=4)
     p.add_argument('--chunk_size', type=int, default=64)
-    p.add_argument('--seed', type=int, default=42)
-    p.add_argument('--fps_backend', type=str, default='auto')
     args = p.parse_args()
     logger = get_logger('build_scanobjectnn', log_file=os.path.join(args.out_root, 'build_scanobjectnn.log'))
     split_root = os.path.join(args.h5_root, args.split_dir)
@@ -85,5 +82,5 @@ if __name__ == '__main__':
         raise FileNotFoundError(f"Train h5 not found: {train_path}")
     if not os.path.exists(test_path):
         raise FileNotFoundError(f"Test h5 not found: {test_path}")
-    process_h5_file(train_path, args.out_root, 'train', args.target_n, args.percentile, args.workers, args.chunk_size, args.seed, args.fps_backend)
-    process_h5_file(test_path, args.out_root, 'test', args.target_n, args.percentile, args.workers, args.chunk_size, args.seed, args.fps_backend)
+    process_h5_file(train_path, args.out_root, 'train', args.percentile, args.workers, args.chunk_size)
+    process_h5_file(test_path, args.out_root, 'test', args.percentile, args.workers, args.chunk_size)
