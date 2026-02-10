@@ -5,6 +5,7 @@
 import os
 import glob
 import argparse
+import numpy as np
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import trimesh
 from scripts.utils.io import save_npy_and_meta
@@ -50,8 +51,20 @@ def walk_and_process(modelnet_root, out_root, sample_surface_n, percentile, work
             _ = fut.result()
     train_count = len(glob.glob(os.path.join(out_root, 'ModelNet', '*', 'train', '*.npy')))
     test_count = len(glob.glob(os.path.join(out_root, 'ModelNet', '*', 'test', '*.npy')))
+    train_files = sorted(glob.glob(os.path.join(out_root, 'ModelNet', '*', 'train', '*.npy')))
+    test_files = sorted(glob.glob(os.path.join(out_root, 'ModelNet', '*', 'test', '*.npy')))
     logger.info(f"ModelNet train samples: {train_count}")
     logger.info(f"ModelNet test samples: {test_count}")
+    if train_files:
+        train_shape = np.load(train_files[0]).shape
+        logger.info(f"ModelNet first train shape: {train_shape}")
+    else:
+        logger.warning("ModelNet train samples not found for shape check")
+    if test_files:
+        test_shape = np.load(test_files[0]).shape
+        logger.info(f"ModelNet first test shape: {test_shape}")
+    else:
+        logger.warning("ModelNet test samples not found for shape check")
     logger.info("ModelNet processing finished")
 
 if __name__ == '__main__':

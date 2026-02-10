@@ -87,5 +87,17 @@ if __name__ == '__main__':
     process_h5_file(test_path, args.out_root, 'test', args.percentile, args.workers, args.chunk_size)
     train_count = len(glob.glob(os.path.join(args.out_root, 'ScanObjectNN', '*', 'train', '*.npy')))
     test_count = len(glob.glob(os.path.join(args.out_root, 'ScanObjectNN', '*', 'test', '*.npy')))
+    train_files = sorted(glob.glob(os.path.join(args.out_root, 'ScanObjectNN', '*', 'train', '*.npy')))
+    test_files = sorted(glob.glob(os.path.join(args.out_root, 'ScanObjectNN', '*', 'test', '*.npy')))
     logger.info(f"ScanObjectNN train samples: {train_count}")
     logger.info(f"ScanObjectNN test samples: {test_count}")
+    if train_files:
+        train_shape = np.load(train_files[0]).shape
+        logger.info(f"ScanObjectNN first train shape: {train_shape}")
+    else:
+        logger.warning("ScanObjectNN train samples not found for shape check")
+    if test_files:
+        test_shape = np.load(test_files[0]).shape
+        logger.info(f"ScanObjectNN first test shape: {test_shape}")
+    else:
+        logger.warning("ScanObjectNN test samples not found for shape check")
