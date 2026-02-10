@@ -6,7 +6,6 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 import h5py
 from scripts.utils.io import save_npy_and_meta
 from scripts.utils.normalize import compute_centroid_and_scale, center_and_scale
-from scripts.utils.fps import fps
 from scripts.utils.logger import get_logger
 
 SCANOBJECTNN_CLASS_NAMES = [
@@ -41,17 +40,10 @@ def process_single_sample(args_tuple):
         os.makedirs(out_dir, exist_ok=True)
         centroid, scale = compute_centroid_and_scale(pts, percentile)
         pts = center_and_scale(pts, centroid, scale)
-        if pts.shape[0] >= target_n:
-            idxs = fps(pts, target_n, seed=seed, backend=fps_backend)
-            pts_out = pts[idxs]
-        else:
-            extra = target_n - pts.shape[0]
-            choice = np.random.choice(pts.shape[0], extra, replace=True)
-            pts_out = np.concatenate([pts, pts[choice]], axis=0)
         base = f"{os.path.splitext(os.path.basename(h5_path))[0]}_{idx:06d}"
         out_npy = os.path.join(out_dir, base + '.npy')
         meta = dict(orig=f"{h5_path}:idx={idx}", dataset='ScanObjectNN', label=label, class_name=class_name, centroid=centroid.tolist(), scale=scale)
-        save_npy_and_meta(out_npy, pts_out, meta)
+        save_npy_and_meta(out_npy, pts, meta)
         return out_npy
     except Exception as e:
         logger.exception(f"Failed sample {h5_path} idx {idx}: {e}")

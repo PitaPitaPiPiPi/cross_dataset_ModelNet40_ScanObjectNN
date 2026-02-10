@@ -7,10 +7,8 @@ import glob
 import argparse
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from functools import partial
-import numpy as np
 import trimesh
 from scripts.utils.io import save_npy_and_meta
-from scripts.utils.fps import fps
 from scripts.utils.normalize import compute_centroid_and_scale, center_and_scale
 from scripts.utils.logger import get_logger
 
@@ -21,12 +19,10 @@ def process_one_off(off_path, out_dir, sample_surface_n, target_n, percentile, s
         pts = mesh.sample(sample_surface_n)
         centroid, scale = compute_centroid_and_scale(pts, percentile)
         pts = center_and_scale(pts, centroid, scale)
-        idx = fps(pts, target_n, seed=seed, backend=fps_backend)
-        pts1024 = pts[idx]
         base = os.path.splitext(os.path.basename(off_path))[0]
         out_npy = os.path.join(out_dir, base + '.npy')
         meta = dict(orig=off_path, dataset='ModelNet', centroid=centroid.tolist(), scale=scale)
-        save_npy_and_meta(out_npy, pts1024, meta)
+        save_npy_and_meta(out_npy, pts, meta)
         logger.debug(f"Processed {off_path} -> {out_npy}")
         return out_npy
     except Exception as e:
@@ -59,7 +55,7 @@ if __name__ == '__main__':
     p = argparse.ArgumentParser()
     p.add_argument('--modelnet_root', required=True)
     p.add_argument('--out_root', required=True)
-    p.add_argument('--sample_surface_n', type=int, default=20000)
+    p.add_argument('--sample_surface_n', type=int, default=10000)
     p.add_argument('--target_n', type=int, default=1024)
     p.add_argument('--percentile', type=float, default=99.0)
     p.add_argument('--workers', type=int, default=4)
