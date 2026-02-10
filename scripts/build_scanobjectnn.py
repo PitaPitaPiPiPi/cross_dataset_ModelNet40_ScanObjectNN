@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import os
 import argparse
+import glob
 import numpy as np
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import h5py
@@ -84,3 +85,7 @@ if __name__ == '__main__':
         raise FileNotFoundError(f"Test h5 not found: {test_path}")
     process_h5_file(train_path, args.out_root, 'train', args.percentile, args.workers, args.chunk_size)
     process_h5_file(test_path, args.out_root, 'test', args.percentile, args.workers, args.chunk_size)
+    train_count = len(glob.glob(os.path.join(args.out_root, 'ScanObjectNN', '*', 'train', '*.npy')))
+    test_count = len(glob.glob(os.path.join(args.out_root, 'ScanObjectNN', '*', 'test', '*.npy')))
+    logger.info(f"ScanObjectNN train samples: {train_count}")
+    logger.info(f"ScanObjectNN test samples: {test_count}")

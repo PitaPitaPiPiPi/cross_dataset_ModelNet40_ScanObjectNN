@@ -48,6 +48,10 @@ def walk_and_process(modelnet_root, out_root, sample_surface_n, percentile, work
             futures.append(exe.submit(process_one_off, off, out_dir, sample_surface_n, percentile))
         for fut in as_completed(futures):
             _ = fut.result()
+    train_count = len(glob.glob(os.path.join(out_root, 'ModelNet', '*', 'train', '*.npy')))
+    test_count = len(glob.glob(os.path.join(out_root, 'ModelNet', '*', 'test', '*.npy')))
+    logger.info(f"ModelNet train samples: {train_count}")
+    logger.info(f"ModelNet test samples: {test_count}")
     logger.info("ModelNet processing finished")
 
 if __name__ == '__main__':

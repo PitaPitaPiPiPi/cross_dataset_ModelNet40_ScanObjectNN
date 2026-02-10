@@ -65,14 +65,28 @@ def copy_class_split(class_id, class_name, split, src_root, out_root):
     return len(files)
 
 def build_cross_dataset(modelnet_root, scanobjectnn_root, out_root):
+    modelnet_train = 0
+    modelnet_test = 0
+    scanobject_train = 0
+    scanobject_test = 0
     for entry in CLASS_ID_MAP:
         class_id = entry['class_id']
         class_name = entry['class_name']
         ds = entry['dataset']
         src_root = modelnet_root if ds == 'ModelNet' else scanobjectnn_root
         class_dir = class_name.replace(' ', '_') if ds == 'ModelNet' else class_name
-        copy_class_split(class_id, class_dir, 'train', src_root, out_root)
-        copy_class_split(class_id, class_dir, 'test', src_root, out_root)
+        train_count = copy_class_split(class_id, class_dir, 'train', src_root, out_root)
+        test_count = copy_class_split(class_id, class_dir, 'test', src_root, out_root)
+        if class_id <= 25:
+            modelnet_train += train_count
+            modelnet_test += test_count
+        else:
+            scanobject_train += train_count
+            scanobject_test += test_count
+    logger.info(f"ModelNet (0-25) train samples: {modelnet_train}")
+    logger.info(f"ModelNet (0-25) test samples: {modelnet_test}")
+    logger.info(f"ScanObjectNN (26-36) train samples: {scanobject_train}")
+    logger.info(f"ScanObjectNN (26-36) test samples: {scanobject_test}")
 
 if __name__ == '__main__':
     p = argparse.ArgumentParser()
