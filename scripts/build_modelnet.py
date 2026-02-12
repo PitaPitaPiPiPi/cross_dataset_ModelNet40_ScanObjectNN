@@ -53,8 +53,18 @@ def walk_and_process(modelnet_root, out_root, sample_surface_n, percentile, work
     test_count = len(glob.glob(os.path.join(out_root, 'ModelNet', '*', 'test', '*.npy')))
     train_files = sorted(glob.glob(os.path.join(out_root, 'ModelNet', '*', 'train', '*.npy')))
     test_files = sorted(glob.glob(os.path.join(out_root, 'ModelNet', '*', 'test', '*.npy')))
+    class_dirs = sorted(glob.glob(os.path.join(out_root, 'ModelNet', '*')))
     logger.info(f"ModelNet train samples: {train_count}")
     logger.info(f"ModelNet test samples: {test_count}")
+    if class_dirs:
+        logger.info("ModelNet per-class sample counts:")
+        for class_dir in class_dirs:
+            class_name = os.path.basename(class_dir)
+            class_train = len(glob.glob(os.path.join(class_dir, 'train', '*.npy')))
+            class_test = len(glob.glob(os.path.join(class_dir, 'test', '*.npy')))
+            logger.info(f"  {class_name} train={class_train} test={class_test}")
+    else:
+        logger.warning("ModelNet class directories not found for per-class counts")
     if train_files:
         train_shape = np.load(train_files[0]).shape
         logger.info(f"ModelNet first train shape: {train_shape}")

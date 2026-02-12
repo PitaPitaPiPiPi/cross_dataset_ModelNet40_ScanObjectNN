@@ -92,6 +92,11 @@ if __name__ == '__main__':
     test_files = sorted(glob.glob(os.path.join(args.out_root, 'ScanObjectNN', '*', 'test', '*.npy')))
     logger.info(f"ScanObjectNN train samples: {train_count}")
     logger.info(f"ScanObjectNN test samples: {test_count}")
+    logger.info("ScanObjectNN per-class sample counts:")
+    for class_name in SCANOBJECTNN_CLASS_NAMES:
+        class_train = len(glob.glob(os.path.join(args.out_root, 'ScanObjectNN', class_name, 'train', '*.npy')))
+        class_test = len(glob.glob(os.path.join(args.out_root, 'ScanObjectNN', class_name, 'test', '*.npy')))
+        logger.info(f"  {class_name} train={class_train} test={class_test}")
     if train_files:
         train_shape = np.load(train_files[0]).shape
         logger.info(f"ScanObjectNN first train shape: {train_shape}")
