@@ -10,21 +10,21 @@ from scripts.utils.normalize import compute_centroid_and_scale, center_and_scale
 from scripts.utils.logger import get_logger
 
 SCANOBJECTNN_CLASS_NAMES = [
-    'Bag',
-    'Bed',
-    'Bin',
-    'Box',
-    'Cabinet',
-    'Chair',
-    'Desk',
-    'Display',
-    'Door',
-    'Pillow',
-    'Shelf',
-    'Sink',
-    'Sofa',
-    'Table',
-    'Toilet',
+    'bag',
+    'bed',
+    'bin',
+    'box',
+    'cabinet',
+    'chair',
+    'desk',
+    'display',
+    'door',
+    'pillow',
+    'shelf',
+    'sink',
+    'sofa',
+    'table',
+    'toilet',
 ]
 
 def process_single_sample(args_tuple):
@@ -41,7 +41,8 @@ def process_single_sample(args_tuple):
         os.makedirs(out_dir, exist_ok=True)
         centroid, scale = compute_centroid_and_scale(pts, percentile)
         pts = center_and_scale(pts, centroid, scale)
-        base = f"{os.path.splitext(os.path.basename(h5_path))[0]}_{idx:06d}"
+        prefix = 'training' if split == 'train' else 'test'
+        base = f"{prefix}_{class_name}_{idx:06d}"
         out_npy = os.path.join(out_dir, base + '.npy')
         meta = dict(orig=f"{h5_path}:idx={idx}", dataset='ScanObjectNN', label=label, class_name=class_name, centroid=centroid.tolist(), scale=scale)
         save_npy_and_meta(out_npy, pts, meta)
