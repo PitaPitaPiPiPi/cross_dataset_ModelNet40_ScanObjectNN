@@ -6,7 +6,7 @@ import numpy as np
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import h5py
 from scripts.utils.io import save_npy_and_meta
-from scripts.utils.normalize import compute_centroid_and_scale, center_and_scale
+from scripts.utils.normalize import pc_normalize_unified
 from scripts.utils.logger import get_logger
 
 SCANOBJECTNN_CLASS_NAMES = [
@@ -28,7 +28,7 @@ SCANOBJECTNN_CLASS_NAMES = [
 ]
 
 def process_single_sample(args_tuple):
-    (h5_path, idx, out_root, split, percentile) = args_tuple
+    (h5_path, idx, out_root, split) = args_tuple
     logger = get_logger('build_scanobjectnn')
     try:
         with h5py.File(h5_path, 'r') as f:
@@ -39,8 +39,8 @@ def process_single_sample(args_tuple):
         class_name = SCANOBJECTNN_CLASS_NAMES[label]
         out_dir = os.path.join(out_root, 'ScanObjectNN', class_name, split)
         os.makedirs(out_dir, exist_ok=True)
-        centroid, scale = compute_centroid_and_scale(pts, percentile)
-        pts = center_and_scale(pts, centroid, scale)
+        centroid = pts.mean(axis=0)
+        pts, centroid, scale = pc_normalize_unified(pts, openshape=True, return_meta=True)
         prefix = 'training' if split == 'train' else 'test'
         base = f"{prefix}_{class_name}_{idx:06d}"
         out_npy = os.path.join(out_dir, base + '.npy')
@@ -51,12 +51,12 @@ def process_single_sample(args_tuple):
         logger.exception(f"Failed sample {h5_path} idx {idx}: {e}")
         return None
 
-def process_h5_file(h5_path, out_root, split, percentile, workers, chunk_size):
+def process_h5_file(h5_path, out_root, split, workers, chunk_size):
     logger = get_logger('build_scanobjectnn')
     try:
         with h5py.File(h5_path, 'r') as f:
             N = f['data'].shape[0]
-        args_list = [(h5_path, i, out_root, split, percentile) for i in range(N)]
+        args_list = [(h5_path, i, out_root, split) for i in range(N)]
         with ProcessPoolExecutor(max_workers=workers) as exe:
             futures = [exe.submit(process_single_sample, args) for args in args_list]
             for fut in as_completed(futures):
@@ -72,7 +72,6 @@ if __name__ == '__main__':
     p.add_argument('--split_dir', default='main_split_nobg')
     p.add_argument('--train_h5', default='training_objectdataset.h5')
     p.add_argument('--test_h5', default='test_objectdataset.h5')
-    p.add_argument('--percentile', type=float, default=99.0)
     p.add_argument('--workers', type=int, default=4)
     p.add_argument('--chunk_size', type=int, default=64)
     args = p.parse_args()
@@ -84,8 +83,8 @@ if __name__ == '__main__':
         raise FileNotFoundError(f"Train h5 not found: {train_path}")
     if not os.path.exists(test_path):
         raise FileNotFoundError(f"Test h5 not found: {test_path}")
-    process_h5_file(train_path, args.out_root, 'train', args.percentile, args.workers, args.chunk_size)
-    process_h5_file(test_path, args.out_root, 'test', args.percentile, args.workers, args.chunk_size)
+    process_h5_file(train_path, args.out_root, 'train', args.workers, args.chunk_size)
+    process_h5_file(test_path, args.out_root, 'test', args.workers, args.chunk_size)
     train_count = len(glob.glob(os.path.join(args.out_root, 'ScanObjectNN', '*', 'train', '*.npy')))
     test_count = len(glob.glob(os.path.join(args.out_root, 'ScanObjectNN', '*', 'test', '*.npy')))
     train_files = sorted(glob.glob(os.path.join(args.out_root, 'ScanObjectNN', '*', 'train', '*.npy')))
