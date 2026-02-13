@@ -15,7 +15,7 @@ from scripts.utils.logger import get_logger
 def process_one_off(off_path, out_dir, sample_surface_n):
     logger = get_logger('build_modelnet')
     try:
-        mesh = trimesh.load(off_path, process=False)
+        mesh = trimesh.load(off_path, process=True)
         pts = mesh.sample(sample_surface_n)
         centroid = pts.mean(axis=0)
         pts, centroid, scale = pc_normalize_unified(pts, openshape=True, return_meta=True)
