@@ -21,10 +21,10 @@ SCANOBJECTNN_CLASS_NAMES = [
     'shelf',
     'table',
     'bed',
-    'sofa',
+    'pillow',
     'sink',
+    'sofa',
     'toilet',
-    'tub',
 ]
 
 def process_single_sample(args_tuple):
