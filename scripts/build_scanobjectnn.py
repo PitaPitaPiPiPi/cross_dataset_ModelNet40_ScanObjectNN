@@ -11,7 +11,6 @@ from scripts.utils.logger import get_logger
 
 SCANOBJECTNN_CLASS_NAMES = [
     'bag',
-    'bed',
     'bin',
     'box',
     'cabinet',
@@ -19,12 +18,13 @@ SCANOBJECTNN_CLASS_NAMES = [
     'desk',
     'display',
     'door',
-    'pillow',
     'shelf',
-    'sink',
-    'sofa',
     'table',
+    'bed',
+    'sofa',
+    'sink',
     'toilet',
+    'tub',
 ]
 
 def process_single_sample(args_tuple):
@@ -33,7 +33,11 @@ def process_single_sample(args_tuple):
     try:
         with h5py.File(h5_path, 'r') as f:
             pts = f['data'][idx].astype(np.float32)
-            label = int(f['label'][idx]) if 'label' in f else None
+            if 'label' in f:
+                label_raw = np.asarray(f['label'][idx]).squeeze()
+                label = int(label_raw)
+            else:
+                label = None
         if label is None or label < 0 or label >= len(SCANOBJECTNN_CLASS_NAMES):
             raise ValueError(f"Invalid label {label} at idx {idx}")
         class_name = SCANOBJECTNN_CLASS_NAMES[label]
