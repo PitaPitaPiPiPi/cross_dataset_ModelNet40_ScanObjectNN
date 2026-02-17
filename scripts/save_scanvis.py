@@ -26,8 +26,25 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
 from pathlib import Path
 from tqdm import tqdm
-import shutil
 import itertools
+
+SCANOBJECTNN_CLASS_NAMES = [
+    'bag',
+    'bed',
+    'bin',
+    'box',
+    'cabinet',
+    'chair',
+    'desk',
+    'display',
+    'door',
+    'pillow',
+    'shelf',
+    'sink',
+    'sofa',
+    'table',
+    'toilet',
+]
 
 def ensure_dir(p):
     os.makedirs(p, exist_ok=True)
@@ -71,7 +88,7 @@ def load_sample_from_npy(path):
 
 def load_uni_samples(uni_path):
     """Load uni-style .npy (dictionary or array of samples).
-       Return list/iterable of xyz arrays.
+       Return samples list and optional labels array.
     """
     data = np.load(uni_path, allow_pickle=True)
     try:
@@ -79,6 +96,7 @@ def load_uni_samples(uni_path):
             data = data.item()
     except Exception:
         pass
+    labels = None
     if isinstance(data, dict):
         if 'xyz' in data:
             xyz_all = data['xyz']
@@ -92,6 +110,8 @@ def load_uni_samples(uni_path):
                     raise ValueError(f"Unexpected xyz shape in {uni_path}: {xyz_all.shape}")
             else:
                 samples = [np.asarray(x).astype(np.float32) for x in xyz_all]
+            if 'label' in data:
+                labels = np.asarray(data['label']).reshape(-1)
         else:
             raise ValueError(f"uni npy dict has no 'xyz' key: {list(data.keys())}")
     elif isinstance(data, np.ndarray):
@@ -103,7 +123,7 @@ def load_uni_samples(uni_path):
             samples = [np.asarray(data).astype(np.float32)]
     else:
         raise ValueError(f"Unsupported uni data type: {type(data)}")
-    return samples
+    return samples, labels
 
 def equalize_axes(ax, xyz):
     """Set equal aspect (approx) for 3D scatter by setting limits to same ranges."""
@@ -192,12 +212,17 @@ def process_my_dataset(root_dir, out_root, elev, azim, max_points, dpi, point_si
 
 def process_uni_file(uni_path, out_root, elev, azim, max_points, dpi, point_size, try_transforms_flag):
     out_root = Path(out_root).expanduser()
-    samples = load_uni_samples(uni_path)
-    # Attempt to infer class grouping: if samples are labeled inside dict maybe 'labels' exists
-    # else just save all under 'unknown/test/'
-    base_class = "uni_test"
+    samples, labels = load_uni_samples(uni_path)
+    if labels is None:
+        raise ValueError("uni npy has no 'label' key; cannot route samples to class folders")
+    if len(labels) < len(samples):
+        raise ValueError(f"Label count {len(labels)} is smaller than samples {len(samples)}")
     for idx, xyz in enumerate(tqdm(samples, desc="Processing uni samples", unit="sample")):
-        out_dir = out_root / base_class / "test"
+        label = int(labels[idx])
+        if label < 0 or label >= len(SCANOBJECTNN_CLASS_NAMES):
+            raise ValueError(f"Invalid label {label} at sample {idx}")
+        class_name = SCANOBJECTNN_CLASS_NAMES[label]
+        out_dir = out_root / "classes" / class_name / "test"
         ensure_dir(out_dir)
         out_path = out_dir / f"{idx:06d}.png"
         plot_and_save(xyz, str(out_path), elev=elev, azim=azim, max_points=max_points, dpi=dpi, point_size=point_size)
