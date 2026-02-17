@@ -10,22 +10,23 @@ from scripts.utils.normalize import pc_normalize_unified
 from scripts.utils.logger import get_logger
 
 SCANOBJECTNN_CLASS_NAMES = [
-    'bag',
-    'bin',
-    'box',
-    'cabinet',
-    'chair',
-    'desk',
-    'display',
-    'door',
-    'shelf',
-    'table',
-    'bed',
-    'pillow',
-    'sink',
-    'sofa',
-    'toilet',
+    'bag',   # 0
+    'bed',   # 1
+    'bin',   # 2
+    'box',   # 3
+    'cabinet',  # 4
+    'chair',    # 5
+    'desk',     # 6
+    'display',  # 7
+    'door',     # 8
+    'pillow',   # 9
+    'shelf',    # 10
+    'sink',     # 11
+    'sofa',     # 12
+    'table',    # 13
+    'toilet',   # 14
 ]
+
 
 def process_single_sample(args_tuple):
     (h5_path, idx, out_root, split) = args_tuple
