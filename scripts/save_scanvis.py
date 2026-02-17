@@ -29,21 +29,21 @@ from tqdm import tqdm
 import itertools
 
 SCANOBJECTNN_CLASS_NAMES = [
-    'bag',   # 0
-    'bed',   # 1
-    'bin',   # 2
-    'box',   # 3
-    'cabinet',  # 4
-    'chair',    # 5
-    'desk',     # 6
-    'display',  # 7
-    'door',     # 8
-    'pillow',   # 9
-    'shelf',    # 10
-    'sink',     # 11
-    'sofa',     # 12
-    'table',    # 13
-    'toilet',   # 14
+    'bag', # 0
+    'bin', # 1 
+    'box', # 2 
+    'cabinet', # 3 
+    'chair', # 4 
+    'desk', # 5 
+    'display', # 6 
+    'door', # 7 
+    'shelf', # 8 
+    'table', # 9 
+    'bed', # 10 
+    'pillow', # 11 
+    'sink', # 12 
+    'sofa', # 13 
+    'toilet', # 14 
 ]
 
 def ensure_dir(p):

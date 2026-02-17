@@ -10,21 +10,21 @@ from scripts.utils.normalize import pc_normalize_unified
 from scripts.utils.logger import get_logger
 
 SCANOBJECTNN_CLASS_NAMES = [
-    'bag',   # 0
-    'bed',   # 1
-    'bin',   # 2
-    'box',   # 3
-    'cabinet',  # 4
-    'chair',    # 5
-    'desk',     # 6
-    'display',  # 7
-    'door',     # 8
-    'pillow',   # 9
-    'shelf',    # 10
-    'sink',     # 11
-    'sofa',     # 12
-    'table',    # 13
-    'toilet',   # 14
+    'bag', # 0
+    'bin', # 1 
+    'box', # 2 
+    'cabinet', # 3 
+    'chair', # 4 
+    'desk', # 5 
+    'display', # 6 
+    'door', # 7 
+    'shelf', # 8 
+    'table', # 9 
+    'bed', # 10 
+    'pillow', # 11 
+    'sink', # 12 
+    'sofa', # 13 
+    'toilet', # 14 
 ]
 
 
@@ -45,7 +45,7 @@ def process_single_sample(args_tuple):
         out_dir = os.path.join(out_root, 'ScanObjectNN', class_name, split)
         os.makedirs(out_dir, exist_ok=True)
         centroid = pts.mean(axis=0)
-        pts, centroid, scale = pc_normalize_unified(pts, openshape=True, return_meta=True)
+        pts, centroid, scale = pc_normalize_unified(pts, openshape=False, return_meta=True)
         prefix = 'training' if split == 'train' else 'test'
         base = f"{prefix}_{class_name}_{idx:06d}"
         out_npy = os.path.join(out_dir, base + '.npy')
