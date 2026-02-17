@@ -184,6 +184,7 @@ def process_my_dataset(root_dir, out_root, elev, azim, max_points, dpi, point_si
     out_root = Path(out_root).expanduser()
     # Expect structure: root/class_name/{train,test}/files.npy  OR root/class_name/*.npy
     class_dirs = [p for p in root_dir.iterdir() if p.is_dir()]
+    total_saved = 0
     for cls in class_dirs:
         # find .npy files recursively under class dir
         npy_paths = list(cls.rglob('*.npy'))
@@ -206,9 +207,11 @@ def process_my_dataset(root_dir, out_root, elev, azim, max_points, dpi, point_si
             out_fname = p.stem + ".png"
             out_path = out_dir / out_fname
             plot_and_save(xyz, str(out_path), elev=elev, azim=azim, max_points=max_points, dpi=dpi, point_size=point_size)
+            total_saved += 1
             if try_transforms_flag:
                 out_prefix = str(out_path.with_suffix(''))
                 try_transformed_variants(xyz, out_prefix + "_transform", elev, azim, max_points, dpi, point_size)
+            return total_saved
 
 def process_uni_file(uni_path, out_root, elev, azim, max_points, dpi, point_size, try_transforms_flag):
     out_root = Path(out_root).expanduser()
@@ -217,6 +220,7 @@ def process_uni_file(uni_path, out_root, elev, azim, max_points, dpi, point_size
         raise ValueError("uni npy has no 'label' key; cannot route samples to class folders")
     if len(labels) < len(samples):
         raise ValueError(f"Label count {len(labels)} is smaller than samples {len(samples)}")
+    total_saved = 0
     for idx, xyz in enumerate(tqdm(samples, desc="Processing uni samples", unit="sample")):
         label = int(labels[idx])
         if label < 0 or label >= len(SCANOBJECTNN_CLASS_NAMES):
@@ -226,9 +230,11 @@ def process_uni_file(uni_path, out_root, elev, azim, max_points, dpi, point_size
         ensure_dir(out_dir)
         out_path = out_dir / f"{idx:06d}.png"
         plot_and_save(xyz, str(out_path), elev=elev, azim=azim, max_points=max_points, dpi=dpi, point_size=point_size)
+        total_saved += 1
         if try_transforms_flag:
             out_prefix = str(out_path.with_suffix(''))
             try_transformed_variants(xyz, out_prefix + "_transform", elev, azim, max_points, dpi, point_size)
+    return total_saved
 
 def main():
     p = argparse.ArgumentParser()
@@ -249,13 +255,13 @@ def main():
 
     if args.uni_file:
         print("Processing Uni file:", args.uni_file)
-        process_uni_file(args.uni_file, args.out_uni, args.elev, args.azim, args.max_points, args.dpi, args.point_size, args.try_transforms)
-        print("Uni processing done ->", args.out_uni)
+        uni_count = process_uni_file(args.uni_file, args.out_uni, args.elev, args.azim, args.max_points, args.dpi, args.point_size, args.try_transforms)
+        print(f"Uni processing done -> {args.out_uni} (total images: {uni_count})")
 
     if args.my_root:
         print("Processing my dataset root:", args.my_root)
-        process_my_dataset(args.my_root, args.out_my, args.elev, args.azim, args.max_points, args.dpi, args.point_size, args.try_transforms)
-        print("My dataset processing done ->", args.out_my)
+        my_count = process_my_dataset(args.my_root, args.out_my, args.elev, args.azim, args.max_points, args.dpi, args.point_size, args.try_transforms)
+        print(f"My dataset processing done -> {args.out_my} (total images: {my_count})")
 
 if __name__ == "__main__":
     main()
