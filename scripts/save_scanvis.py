@@ -30,7 +30,6 @@ import itertools
 
 SCANOBJECTNN_CLASS_NAMES = [
     'bag',
-    'bed',
     'bin',
     'box',
     'cabinet',
@@ -38,11 +37,12 @@ SCANOBJECTNN_CLASS_NAMES = [
     'desk',
     'display',
     'door',
-    'pillow',
     'shelf',
+    'table',
+    'bed',
+    'pillow',
     'sink',
     'sofa',
-    'table',
     'toilet',
 ]
 
@@ -211,7 +211,7 @@ def process_my_dataset(root_dir, out_root, elev, azim, max_points, dpi, point_si
             if try_transforms_flag:
                 out_prefix = str(out_path.with_suffix(''))
                 try_transformed_variants(xyz, out_prefix + "_transform", elev, azim, max_points, dpi, point_size)
-            return total_saved
+    return total_saved
 
 def process_uni_file(uni_path, out_root, elev, azim, max_points, dpi, point_size, try_transforms_flag):
     out_root = Path(out_root).expanduser()
