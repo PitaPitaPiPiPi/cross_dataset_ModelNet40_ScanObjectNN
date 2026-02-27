@@ -29,7 +29,7 @@ SCANOBJECTNN_CLASS_NAMES = [
 
 
 def process_single_sample(args_tuple):
-    (h5_path, idx, out_root, split) = args_tuple
+    (h5_path, idx, out_root, split, num_points) = args_tuple
     logger = get_logger('build_scanobjectnn')
     try:
         with h5py.File(h5_path, 'r') as f:
@@ -45,7 +45,14 @@ def process_single_sample(args_tuple):
         out_dir = os.path.join(out_root, 'ScanObjectNN', class_name, split)
         os.makedirs(out_dir, exist_ok=True)
         centroid = pts.mean(axis=0)
-        pts, centroid, scale = pc_normalize_unified(pts, openshape=False, return_meta=True)
+        pts, centroid, scale = pc_normalize_unified(
+            pts, 
+            openshape=False, 
+            return_meta=True,
+            use_fps=True,
+            fps_k=num_points,
+            seed=42
+            )
         prefix = 'training' if split == 'train' else 'test'
         base = f"{prefix}_{class_name}_{idx:06d}"
         out_npy = os.path.join(out_dir, base + '.npy')
@@ -56,12 +63,12 @@ def process_single_sample(args_tuple):
         logger.exception(f"Failed sample {h5_path} idx {idx}: {e}")
         return None
 
-def process_h5_file(h5_path, out_root, split, workers, chunk_size):
+def process_h5_file(h5_path, out_root, split, workers, chunk_size, num_points):
     logger = get_logger('build_scanobjectnn')
     try:
         with h5py.File(h5_path, 'r') as f:
             N = f['data'].shape[0]
-        args_list = [(h5_path, i, out_root, split) for i in range(N)]
+        args_list = [(h5_path, i, out_root, split, num_points) for i in range(N)]
         with ProcessPoolExecutor(max_workers=workers) as exe:
             futures = [exe.submit(process_single_sample, args) for args in args_list]
             for fut in as_completed(futures):
@@ -79,6 +86,8 @@ if __name__ == '__main__':
     p.add_argument('--test_h5', default='test_objectdataset.h5')
     p.add_argument('--workers', type=int, default=4)
     p.add_argument('--chunk_size', type=int, default=64)
+    p.add_argument('--num_points', type=int, default=1024,
+               help='Number of points after FPS sampling')
     args = p.parse_args()
     logger = get_logger('build_scanobjectnn', log_file=os.path.join(args.out_root, 'build_scanobjectnn.log'))
     split_root = os.path.join(args.h5_root, args.split_dir)
@@ -88,8 +97,8 @@ if __name__ == '__main__':
         raise FileNotFoundError(f"Train h5 not found: {train_path}")
     if not os.path.exists(test_path):
         raise FileNotFoundError(f"Test h5 not found: {test_path}")
-    process_h5_file(train_path, args.out_root, 'train', args.workers, args.chunk_size)
-    process_h5_file(test_path, args.out_root, 'test', args.workers, args.chunk_size)
+    process_h5_file(train_path, args.out_root, 'train', args.workers, args.chunk_size, args.num_points)
+    process_h5_file(test_path, args.out_root, 'test', args.workers, args.chunk_size, args.num_points)
     train_count = len(glob.glob(os.path.join(args.out_root, 'ScanObjectNN', '*', 'train', '*.npy')))
     test_count = len(glob.glob(os.path.join(args.out_root, 'ScanObjectNN', '*', 'test', '*.npy')))
     train_files = sorted(glob.glob(os.path.join(args.out_root, 'ScanObjectNN', '*', 'train', '*.npy')))
