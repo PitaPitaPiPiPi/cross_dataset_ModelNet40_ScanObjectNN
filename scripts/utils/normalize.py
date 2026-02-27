@@ -1,5 +1,5 @@
 import numpy as np
-from utils.fps import fps
+from scripts.utils.fps import fps
 
 def compute_centroid_and_scale(object_pts: np.ndarray, percentile: float = 99.0):
     if object_pts.size == 0:
