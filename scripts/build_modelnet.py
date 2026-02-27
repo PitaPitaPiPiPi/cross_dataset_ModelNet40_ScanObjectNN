@@ -35,24 +35,63 @@ def process_one_off(off_path, out_dir, sample_surface_n, fps_k):
         logger.exception(f"Failed processing {off_path}: {e}")
         return None
 
-def walk_and_process(modelnet_root, out_root, sample_surface_n, workers, chunk_size, fps_k):
+def load_point_cloud(npy_path):
+    pts = np.load(npy_path)
+    if pts.ndim != 2:
+        raise ValueError(f"Point cloud must be 2D, got shape {pts.shape}")
+    if pts.shape[1] != 3 and pts.shape[0] == 3:
+        pts = pts.T
+    if pts.shape[1] != 3:
+        raise ValueError(f"Point cloud must have 3 columns, got shape {pts.shape}")
+    return pts.astype(np.float32)
+
+def process_one_npy(npy_path, out_dir, fps_k):
     logger = get_logger('build_modelnet')
-    off_paths = []
+    try:
+        pts = load_point_cloud(npy_path)
+        pts, centroid, scale = pc_normalize_unified(
+            pts,
+            openshape=True,
+            return_meta=True,
+            use_fps=True,
+            fps_k=fps_k,
+            seed=42
+            )
+        base = os.path.splitext(os.path.basename(npy_path))[0]
+        out_npy = os.path.join(out_dir, base + '.npy')
+        meta = dict(orig=npy_path, dataset='ModelNet', centroid=centroid.tolist(), scale=scale)
+        save_npy_and_meta(out_npy, pts, meta)
+        logger.debug(f"Processed {npy_path} -> {out_npy}")
+        return out_npy
+    except Exception as e:
+        logger.exception(f"Failed processing {npy_path}: {e}")
+        return None
+
+def walk_and_process(modelnet_root, out_root, sample_surface_n, workers, chunk_size, fps_k, sample_from_mesh):
+    logger = get_logger('build_modelnet')
+    input_paths = []
+    ext = 'off' if sample_from_mesh else 'npy'
     for split in ['train', 'test']:
-        pattern = os.path.join(modelnet_root, '*', split, '*.off')
-        off_paths.extend(glob.glob(pattern))
-    logger.info(f"Found {len(off_paths)} .off files")
+        pattern = os.path.join(modelnet_root, '*', split, f'*.{ext}')
+        input_paths.extend(glob.glob(pattern))
+    logger.info(f"Found {len(input_paths)} .{ext} files")
     os.makedirs(out_root, exist_ok=True)
+    if not input_paths:
+        logger.warning("No input files found; check --modelnet_root and input format")
+        return
     futures = []
     with ProcessPoolExecutor(max_workers=workers) as exe:
-        for off in off_paths:
-            rel = os.path.relpath(off, modelnet_root)
+        for src in input_paths:
+            rel = os.path.relpath(src, modelnet_root)
             parts = rel.split(os.sep)
             class_name = parts[0]
             split = parts[1]
             out_dir = os.path.join(out_root, 'ModelNet', class_name, split)
             os.makedirs(out_dir, exist_ok=True)
-            futures.append(exe.submit(process_one_off, off, out_dir, sample_surface_n, fps_k))
+            if sample_from_mesh:
+                futures.append(exe.submit(process_one_off, src, out_dir, sample_surface_n, fps_k))
+            else:
+                futures.append(exe.submit(process_one_npy, src, out_dir, fps_k))
         for fut in as_completed(futures):
             _ = fut.result()
     train_count = len(glob.glob(os.path.join(out_root, 'ModelNet', '*', 'train', '*.npy')))
@@ -91,6 +130,17 @@ if __name__ == '__main__':
     p.add_argument('--fps_k', type=int, default=1024, help='Number of points after FPS sampling')
     p.add_argument('--workers', type=int, default=4)
     p.add_argument('--chunk_size', type=int, default=64)
+    p.add_argument('--sample_from_mesh', action='store_true', help='Sample points from .off meshes in modelnet_root')
+    p.add_argument('--no_sample_from_mesh', dest='sample_from_mesh', action='store_false', help='Use existing .npy point clouds in modelnet_root')
+    p.set_defaults(sample_from_mesh=True)
     args = p.parse_args()
     logger = get_logger('build_modelnet', log_file=os.path.join(args.out_root, 'build_modelnet.log'))
-    walk_and_process(args.modelnet_root, args.out_root, args.sample_surface_n, args.workers, args.chunk_size, args.fps_k)
+    walk_and_process(
+        args.modelnet_root,
+        args.out_root,
+        args.sample_surface_n,
+        args.workers,
+        args.chunk_size,
+        args.fps_k,
+        args.sample_from_mesh,
+    )
