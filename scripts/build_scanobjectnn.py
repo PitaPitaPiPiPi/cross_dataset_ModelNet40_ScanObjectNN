@@ -44,7 +44,6 @@ def process_single_sample(args_tuple):
         class_name = SCANOBJECTNN_CLASS_NAMES[label]
         out_dir = os.path.join(out_root, 'ScanObjectNN', class_name, split)
         os.makedirs(out_dir, exist_ok=True)
-        centroid = pts.mean(axis=0)
         pts, centroid, scale = pc_normalize_unified(
             pts, 
             openshape=False, 
