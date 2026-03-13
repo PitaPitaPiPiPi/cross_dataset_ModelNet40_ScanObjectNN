@@ -115,7 +115,6 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Visualize one point-cloud .npy sample and save PNG.")
     parser.add_argument("--input", type=str, default=DEFAULT_INPUT, help="Input .npy path")
     parser.add_argument("--out-dir", type=str, default=DEFAULT_OUT_DIR, help="Output directory")
-    parser.add_argument("--name", type=str, default="pointcloud_1024", help="Output png stem name")
     parser.add_argument("--elev", type=float, default=25.0, help="Camera elevation")
     parser.add_argument("--azim", type=float, default=-55.0, help="Camera azimuth")
     parser.add_argument("--point-size", type=float, default=8.0, help="Scatter point size")
@@ -128,7 +127,7 @@ def main() -> None:
 
     input_path = Path(args.input)
     out_dir = Path(args.out_dir)
-    output_png = out_dir / f"{args.name}.png"
+    output_png = out_dir / f"{input_path.stem}.png"
 
     if not input_path.exists():
         raise FileNotFoundError(f"Input file not found: {input_path}")
