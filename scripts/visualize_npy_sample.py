@@ -98,9 +98,8 @@ def save_visualization(
 
     equal_axes(ax, xyz)
     ax.view_init(elev=elev, azim=azim)
-    ax.set_xticks([])
-    ax.set_yticks([])
-    ax.set_zticks([])
+    ax.set_axis_off()
+    ax.grid(False)
 
     output_png.parent.mkdir(parents=True, exist_ok=True)
     plt.tight_layout(pad=0)
@@ -115,7 +114,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--name", type=str, default="pointcloud_1024", help="Output png stem name")
     parser.add_argument("--elev", type=float, default=25.0, help="Camera elevation")
     parser.add_argument("--azim", type=float, default=-55.0, help="Camera azimuth")
-    parser.add_argument("--point-size", type=float, default=2.0, help="Scatter point size")
+    parser.add_argument("--point-size", type=float, default=4.0, help="Scatter point size")
     parser.add_argument("--dpi", type=int, default=220, help="Saved image DPI")
     return parser.parse_args()
 
