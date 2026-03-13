@@ -86,13 +86,17 @@ def save_visualization(
     fig = plt.figure(figsize=(6, 6))
     ax = fig.add_subplot(111, projection="3d")
 
+    z = xyz[:, 2]
+    z_norm = (z - z.min()) / (np.ptp(z) + 1e-8)
+    colors = plt.get_cmap("jet")(z_norm)
+    colors[:, :3] *= 0.7
+
     ax.scatter(
         xyz[:, 0],
         xyz[:, 1],
         xyz[:, 2],
         s=point_size,
-        c=xyz[:, 2],
-        cmap="jet",
+        c=colors,
         linewidths=0,
     )
 
@@ -114,7 +118,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--name", type=str, default="pointcloud_1024", help="Output png stem name")
     parser.add_argument("--elev", type=float, default=25.0, help="Camera elevation")
     parser.add_argument("--azim", type=float, default=-55.0, help="Camera azimuth")
-    parser.add_argument("--point-size", type=float, default=4.0, help="Scatter point size")
+    parser.add_argument("--point-size", type=float, default=8.0, help="Scatter point size")
     parser.add_argument("--dpi", type=int, default=220, help="Saved image DPI")
     return parser.parse_args()
 
