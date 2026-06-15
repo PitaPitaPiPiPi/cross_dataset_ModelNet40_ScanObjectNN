@@ -66,18 +66,19 @@ raw_datasets/
 
 ## 前処理パイプライン / Preprocessing Pipeline
 
-各サンプルに対して、以下を **必ずこの順序で** 適用します:
+実装上の重要な点（コードの現状）:
 
-1. **中心化 (Centering)**
+- **サンプリング（FPS を含む）→ 中心化 → 正規化** の順で処理が行われます。
+  - `pc_normalize_unified(...)` は内部でまず FPS（`use_fps=True`）を実行し、その後に重心計算と正規化を行います（つまり FPS の前後で正規化は「後」です）。
+  - ModelNet はメッシュからまず `sample_surface_n` 点を抽出し、続けて FPS（`fps_k`）で所望の点数に落とします。
+  - ScanObjectNN は HDF5 から読み出した点群に対して直接 FPS（`num_points`）を適用します。
 
-   * 重心を原点に移動
-2. **正規化 (Normalization)**
+- **軸変換**: ModelNet のメッシュ由来処理では `openshape=True` により Y/Z 軸を入れ替える処理が実装されています。
+- **FPS の実装とシード**: `scripts/utils/fps.py` がバックエンド選択（`pytorch3d` → `modelnet2_ops` → NumPy フォールバック）を行い、デフォルトシードは `42` です。
 
-   * 最大半径で割り、単位球内に収める
-3. **サンプリング (Sampling)**
+注記: `configs/preprocessing.yaml` に `percentile_scale: 99` が定義されていますが、現在の正規化実装（`pc_normalize_unified`）では使用されていません。`scripts/utils/normalize.py` 内には距離の上位パーセンタイルでスケールを取る補助関数 `compute_centroid_and_scale` が存在しますが、実際のフローでは使われず、代わりに各点の重心からの**最大距離 (`maxd`)** で割る実装になっています。
 
-  * ModelNet40 はメッシュから 10000 点を抽出
-  * ScanObjectNN は元データ（2048 点）をそのまま使用
+必要であれば `compute_centroid_and_scale` を正規化フローで利用するよう修正できます（たとえば外れ値を無視してスケールを決めたい場合など）。
 
 ---
 
