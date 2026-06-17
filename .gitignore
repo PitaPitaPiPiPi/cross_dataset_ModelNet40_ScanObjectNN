@@ -18,3 +18,5 @@ Pointnet2_PyTorch/
 .micromamba/
 
 .vscode/
+
+prompt.txt
