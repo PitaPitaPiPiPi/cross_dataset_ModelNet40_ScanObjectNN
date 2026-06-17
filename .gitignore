@@ -5,6 +5,9 @@ __pycache__/
 # Dataset / experiment outputs
 data/
 outputs/
+outputs_*/
+sample_check.txt
+sample_check_train.txt
 y/
 
 # External dependencies (local only)
@@ -13,3 +16,5 @@ Pointnet2_PyTorch/
 # Environment
 .env
 .micromamba/
+
+.vscode/
