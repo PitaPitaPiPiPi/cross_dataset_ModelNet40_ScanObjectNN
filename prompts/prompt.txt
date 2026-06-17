@@ -1,0 +1,427 @@
+あなたは Python リポジトリ `cross_dataset_ModelNet40_ScanObjectNN` の実装補助エージェントです。
+既存の ModelNet40 / ScanObjectNN / ModelNet→ScanObjectNN、以下 M2S、の処理を壊さず、ShapeNet / CO3D / ShapeNet→CO3D、以下 S2C、を追加してください。
+
+最重要方針：
+
+* 既存の ModelNet40、ScanObjectNN、M2S の動作・出力互換性を維持する。
+* 既存 utils、特に `scripts/utils/normalize.py`, `fps.py`, `io.py`, `logger.py` を可能な限り再利用する。
+* 全出力 `.npy` は原則 `(1024, 3)`, `float32`, finite, 中心化・正規化済みにする。
+* 保存形式は既存と同じく 1 sample = 1 `.npy` + 可能なら `.json` metadata。
+* single dataset は `<Dataset>/<class_name>/train|test/*.npy`。
+* cross dataset は `<cross_dataset>/<class_id>/train|test/*.npy`。
+* `raw_datasets/`, `outputs/`, `external/co3d/`, zip, `_in_progress` は git 管理しない。
+* CO3D 公式コードは vendoring しない。`external/co3d` または `--co3d_repo` で参照する。
+
+まず既存構造を確認してください：
+
+```text
+scripts/build_modelnet.py
+scripts/build_scanobjectnn.py
+scripts/build_cross_sessions.py
+scripts/utils/{normalize.py,fps.py,io.py,logger.py}
+configs/sessions.json
+README.md
+.gitignore
+requirements.txt
+```
+
+既存出力構造：
+
+```text
+outputs/ModelNet/<class_name>/train|test/*.npy
+outputs/ScanObjectNN/<class_name>/train|test/*.npy
+outputs/modelnet_scanobjectnn/<class_id>/train|test/*.npy
+```
+
+追加する出力構造：
+
+```text
+outputs/ShapeNet/<class_name>/train|test/*.npy
+outputs/CO3D/<category>/train|test/*.npy
+outputs/shapenet_co3d/<class_id>/train|test/*.npy
+```
+
+## 1. ShapeNet 前処理を追加
+
+新規作成：`scripts/build_shapenet.py`
+
+目的：raw ShapeNet を既存 ModelNet と同じ形式へ変換する。
+
+CLI：
+
+```text
+--shapenet_root
+--out_root
+--num_points 1024
+--sample_surface_n 10000
+--train_ratio 0.8
+--workers
+--seed 42
+--skip_existing
+--overwrite
+```
+
+要件：
+
+* 入力形式：`.obj`, `.off`, `.ply`, `.npy` を自動判定。
+* ShapeNetCore 形式 `synset_id/model_id/models/model_normalized.obj` に対応。
+* 既に `class_name/train|test/*` がある場合は split を尊重。
+* split がない場合は class ごとに deterministic train/test split を作り、`outputs/ShapeNet/split_manifest.json` に保存。
+* `configs/shapenet_class_map.json` を追加し、canonical class name、directory aliases、optional synset id を持たせる。
+* raw folder 名の揺れを class name / underscore / lowercase / aliases / synset id で吸収する。
+* class dir は canonical 化する。例：`trash bin -> trash_bin`, `file cabinet -> file_cabinet`, `flowerpot -> flowerpot`。
+* mesh は `trimesh.load(..., process=True)`、surface sampling、FPS、正規化の順で処理。
+* point cloud は `.ply` を open3d 優先、失敗時 trimesh fallback、`.npy` は `(N,3)` / `(3,N)` を補正。
+* 点数不足時は deterministic repeat/padding で `(num_points,3)` にし、warning を出す。
+* 保存は既存 `save_npy_and_meta` を使う。
+* metadata：`orig`, `dataset="ShapeNet"`, `class_name`, `class_dir`, `split`, `centroid`, `scale`, `num_points`, `source_format`。
+* 終了時に class 別 train/test 件数と sample shape を表示。
+
+## 2. CO3D 前処理を追加
+
+新規作成：`scripts/build_co3d.py`
+
+目的：CO3D v2 の各 sequence の `pointcloud.ply` を 1 sample として `.npy` 化する。
+
+想定 raw 構造：
+
+```text
+CO3D_ROOT/<category>/<sequence_name>/pointcloud.ply
+CO3D_ROOT/<category>/set_lists/*.json
+CO3D_ROOT/<category>/{frame_annotations.jgz,sequence_annotations.jgz}
+```
+
+CLI：
+
+```text
+--co3d_root
+--out_root
+--categories apple,backpack,...
+--num_points 1024
+--train_ratio 0.8
+--workers
+--seed 42
+--use_set_lists
+--skip_existing
+--overwrite
+--strict
+```
+
+CO3D 50 categories：
+
+```text
+apple, backpack, ball, banana, baseballbat, baseballglove, bench, bicycle, book, bottle,
+bowl, broccoli, cake, car, carrot, cellphone, chair, couch, cup, donut,
+frisbee, hairdryer, handbag, hotdog, hydrant, keyboard, kite, laptop, microwave, motorcycle,
+mouse, orange, parkingmeter, pizza, plant, remote, sandwich, skateboard, stopsign, suitcase,
+teddybear, toaster, toilet, toybus, toyplane, toytruck, tv, umbrella, vase, wineglass
+```
+
+要件：
+
+* `configs/co3d_class_map.json` を追加し、上記 50 categories を定義。
+* `--categories` 未指定時は config 全カテゴリを対象にする。
+* category 単位・逐次処理を最重要視する。既存 `outputs/CO3D/<category>` は削除しない。
+* split は sequence 単位。train/test に同一 sequence を混在させない。
+* 既定は deterministic sequence split。`outputs/CO3D/split_manifest.json` に保存。
+* `--use_set_lists` 指定時のみ `set_lists` 使用を試みる。
+* `set_lists` が frame-level split で同一 sequence を train/test/val に跨らせる場合は使用せず deterministic split に fallback。
+* val は conflict がなければ test に merge。
+* `.ply` は open3d 優先、失敗時 trimesh fallback。
+* 点数不足時は deterministic repeat/padding で `(num_points,3)` にし、warning。
+* 保存は既存 `save_npy_and_meta`。
+* metadata：`orig`, `dataset="CO3D"`, `category`, `sequence_name`, `split`, `centroid`, `scale`, `num_points`, `source_format="ply"`。
+* `--strict` なしでは存在するカテゴリだけ処理可能。`--strict` ありでは不足カテゴリを error。
+* 終了時に category 別 train/test 件数と sample shape を表示。
+
+## 3. CO3D category-wise download + preprocess を追加
+
+新規作成：`scripts/download_and_build_co3d_category.py`
+
+目的：CO3D 全体は巨大なため、category ごとに download → preprocess → `outputs/CO3D` へ追記する。
+
+CLI：
+
+```text
+--co3d_repo external/co3d
+--download_folder raw_datasets/co3d
+--category apple
+--categories apple,backpack,...
+--out_root outputs
+--num_points 1024
+--workers
+--seed 42
+--download_only
+--process_only
+--clear_archives_after_unpacking
+--overwrite
+```
+
+要件：
+
+* CO3D repo は以下のように外部 clone されている前提：
+
+```bash
+mkdir -p external
+git clone https://github.com/facebookresearch/co3d.git external/co3d
+```
+
+* 内部で公式 downloader を subprocess 実行する。
+
+```bash
+python external/co3d/co3d/download_dataset.py \
+  --download_folder raw_datasets/co3d \
+  --download_categories apple \
+  --clear_archives_after_unpacking
+```
+
+* `--download_only` でない場合、対象 category のみ `build_co3d.py` 相当で前処理する。
+* `--process_only` では download せず前処理のみ。
+* ダウンロード済み category は再 download を避ける。
+* 失敗時は category 名を明示して error。
+* `raw_datasets/co3d/_in_progress` が残る場合の注意を README に記載。
+
+## 4. S2C cross dataset を追加
+
+新規作成：`scripts/build_cross_shapenet_co3d.py`
+
+目的：前処理済み `outputs/ShapeNet` と `outputs/CO3D` から、M2S と同じ class_id ベースの S2C を作る。
+
+CLI：
+
+```text
+--shapenet_root outputs/ShapeNet
+--co3d_root outputs/CO3D
+--out_root outputs
+--overwrite
+--strict
+```
+
+出力：
+
+```text
+outputs/shapenet_co3d/<class_id>/train|test/*.npy
+```
+
+要件：
+
+* session ディレクトリは作らない。session 情報は config のみに保存。
+* class_id は global id 0〜88 を保持し、再マッピングしない。
+* `.json` metadata があれば一緒にコピーし、以下を追記：`cross_dataset="shapenet_co3d"`, `cross_class_id`, `cross_session`, `source_dataset`, `source_class_name`。
+* コピー時は衝突回避：例 `shapenet_<class_id>_<original>.npy`, `co3d_<class_id>_<original>.npy`。
+* 空白・underscore 差を吸収：`trash bin <-> trash_bin`, `file cabinet <-> file_cabinet`。
+* CO3D は公式名を優先：`baseballglove`, `parkingmeter`, `teddybear`, `wineglass`。
+* CO3D 逐次処理を想定し、`--strict` なしでは missing class を warning して続行。`--strict` ありでは train/test 不足を error。
+* 終了時に class_id 別、dataset 別、session 別の train/test 件数を表示。
+
+S2C class map：
+
+```text
+1: 0 airplane ShapeNet; 1 trash_bin ShapeNet; 2 basket ShapeNet; 3 bathtub ShapeNet; 4 bed ShapeNet; 5 birdhouse ShapeNet; 6 bookshelf ShapeNet; 7 bus ShapeNet; 8 cabinet ShapeNet; 9 camera ShapeNet; 10 can ShapeNet; 11 cap ShapeNet; 12 clock ShapeNet; 13 dishwasher ShapeNet; 14 display ShapeNet; 15 faucet ShapeNet; 16 file_cabinet ShapeNet; 17 guitar ShapeNet; 18 helmet ShapeNet; 19 jar ShapeNet; 20 knife ShapeNet; 21 lamp ShapeNet; 22 loudspeaker ShapeNet; 23 mailbox ShapeNet; 24 microphone ShapeNet; 25 mug ShapeNet; 26 piano ShapeNet; 27 pillow ShapeNet; 28 pistol ShapeNet; 29 flowerpot ShapeNet; 30 printer ShapeNet; 31 rifle ShapeNet; 32 rocket ShapeNet; 33 stove ShapeNet; 34 table ShapeNet; 35 tower ShapeNet; 36 train ShapeNet; 37 vessel ShapeNet; 38 washer ShapeNet
+2: 39 apple CO3D; 40 backpack CO3D; 41 ball CO3D; 42 banana CO3D; 43 baseballbat CO3D
+3: 44 baseballglove CO3D; 45 bench CO3D; 46 bicycle CO3D; 47 book CO3D; 48 bottle CO3D
+4: 49 bowl CO3D; 50 broccoli CO3D; 51 cake CO3D; 52 car CO3D; 53 carrot CO3D
+5: 54 cellphone CO3D; 55 chair CO3D; 56 couch CO3D; 57 cup CO3D; 58 donut CO3D
+6: 59 frisbee CO3D; 60 hairdryer CO3D; 61 handbag CO3D; 62 hotdog CO3D; 63 hydrant CO3D
+7: 64 keyboard CO3D; 65 kite CO3D; 66 laptop CO3D; 67 microwave CO3D; 68 motorcycle CO3D
+8: 69 mouse CO3D; 70 orange CO3D; 71 parkingmeter CO3D; 72 pizza CO3D; 73 plant CO3D
+9: 74 remote CO3D; 75 sandwich CO3D; 76 skateboard CO3D; 77 stopsign CO3D
+10: 78 suitcase CO3D; 79 teddybear CO3D; 80 toaster CO3D; 81 toilet CO3D; 82 toybus CO3D; 83 toyplane CO3D
+11: 84 toytruck CO3D; 85 tv CO3D; 86 umbrella CO3D; 87 vase CO3D; 88 wineglass CO3D
+```
+
+## 5. configs を追加
+
+以下を作成してください。
+
+```text
+configs/shapenet_class_map.json
+configs/co3d_class_map.json
+configs/shapenet_co3d_class_map.json
+configs/shapenet_co3d_sessions.json
+```
+
+要件：
+
+* `shapenet_class_map.json`：ShapeNet canonical name、class_dir、aliases、optional synset_id。
+* `co3d_class_map.json`：CO3D 50 categories。
+* `shapenet_co3d_class_map.json`：全 89 classes。各 entry は `class_id`, `session`, `class_name`, `class_dir`, `dataset` を持つ。
+* `shapenet_co3d_sessions.json`：既存 `configs/sessions.json` に近い形式。`dataset_order=["ShapeNet","CO3D"]`, `cross_dataset_name="shapenet_co3d"` を含め、session 1=[0..38], session 2=[39..43], ..., session 11=[84..88] を明示する。
+* JSON 内で `...` は使わない。
+
+## 6. 前処理済み ShapeNet / CO3D / S2C を個別実行可能にする
+
+既存の ModelNet40 / ScanObjectNN / M2S と同じ抽象度で、以下を別々に読み込み・実行可能にしてください。
+
+```text
+modelnet        -> outputs/ModelNet
+scanobjectnn    -> outputs/ScanObjectNN
+m2s             -> outputs/modelnet_scanobjectnn
+shapenet        -> outputs/ShapeNet
+co3d            -> outputs/CO3D
+s2c             -> outputs/shapenet_co3d
+```
+
+受け付ける alias：
+
+```text
+ShapeNet, shapenet
+CO3D, co3d
+shapenet_co3d, s2c, S2C
+```
+
+要件：
+
+* 既存 dataset loader / runner がある場合、それを拡張する。
+* 可能なら single dataset と cross dataset の loader を共通化する。
+* 破壊的変更になりそうなら薄い wrapper を追加する。
+* single dataset、つまり ShapeNet / CO3D は class-name based directory を読み、label は deterministic class order から作る。
+* ShapeNet の class order は `configs/shapenet_class_map.json` または S2C map の ShapeNet 部分に従う。
+* CO3D の class order は `configs/co3d_class_map.json` に従う。
+* CO3D は逐次処理されるため、`--strict` なしでは存在 category のみで実行可能にする。
+* S2C は class-id based cross dataset として読み、session 情報は `configs/shapenet_co3d_sessions.json`、class map は `configs/shapenet_co3d_class_map.json` を使う。
+* S2C の label は原則 global class_id 0〜88。既存 M2S が local label 設計なら既存に合わせつつ、global class_id を metadata に保持する。
+* S2C も `--strict` なしでは存在 class_id のみで実行可能、`--strict` ありでは 0〜88 の不足を error。
+* 既存分岐がある場合は `shapenet`, `co3d`, `s2c` を追加する。
+
+推奨追加：
+
+```text
+scripts/smoke_test_dataset.py
+```
+
+CLI：
+
+```text
+--dataset {modelnet,scanobjectnn,m2s,shapenet,co3d,s2c}
+--data_root
+--split train|test
+--session
+--strict
+--num_points 1024
+```
+
+smoke test は前処理済みデータを読むだけにし、以下を表示する：
+
+```text
+dataset, split, session if any, number of classes, number of samples, first sample shape, first label, first metadata if any
+```
+
+shape が `(1024,3)` でなければ error。
+
+## 7. 検証スクリプトを追加
+
+新規作成：`scripts/validate_processed_dataset.py`
+
+CLI：
+
+```text
+--root
+--mode single|cross
+--num_points 1024
+```
+
+検証項目：
+
+* `.npy` が存在する。
+* train/test dir が存在する。
+* shape が `(num_points,3)`。
+* dtype が float32 または float 変換可能。
+* NaN / Inf がない。
+* おおむね中心化・単位球正規化されている。
+* cross mode では class_id dir が数字。
+* summary を出し、異常時は non-zero exit。
+
+## 8. README / requirements / gitignore を更新
+
+README に以下を追記：
+
+* ShapeNet 前処理。
+* CO3D 前処理。
+* CO3D category-wise download + preprocess。
+* S2C 作成。
+* 前処理済み ShapeNet / CO3D / S2C の個別実行。
+* 出力構造。
+* class_id / session 対応表。
+* CO3D は巨大なので一括 download しないこと。
+* `external/co3d`, `raw_datasets`, `outputs` は git 管理しないこと。
+* CO3D set_lists は frame-level split の可能性があるため、既定は deterministic sequence split。
+* ShapeNet raw folder 名は環境差があるため `configs/shapenet_class_map.json` を必要に応じて編集すること。
+
+README コマンド例：
+
+```bash
+python -m scripts.build_shapenet --shapenet_root /path/to/ShapeNet --out_root outputs --num_points 1024 --workers 4
+
+mkdir -p external
+git clone https://github.com/facebookresearch/co3d.git external/co3d
+
+python -m scripts.download_and_build_co3d_category \
+  --co3d_repo external/co3d --download_folder raw_datasets/co3d \
+  --category apple --out_root outputs --num_points 1024 --workers 4 \
+  --clear_archives_after_unpacking
+
+python -m scripts.build_co3d \
+  --co3d_root raw_datasets/co3d --out_root outputs \
+  --categories apple,backpack --num_points 1024 --workers 4
+
+python -m scripts.build_cross_shapenet_co3d \
+  --shapenet_root outputs/ShapeNet --co3d_root outputs/CO3D --out_root outputs
+
+python -m scripts.smoke_test_dataset --dataset shapenet --data_root outputs/ShapeNet --split train
+python -m scripts.smoke_test_dataset --dataset co3d --data_root outputs/CO3D --split train
+python -m scripts.smoke_test_dataset --dataset s2c --data_root outputs/shapenet_co3d --session 1 --split train
+
+python -m scripts.validate_processed_dataset --root outputs/shapenet_co3d --mode cross --num_points 1024
+```
+
+必要なら `requirements.txt` に不足分を追加：
+
+```text
+requests
+open3d
+trimesh
+tqdm
+```
+
+既にあれば重複追加しない。
+
+`.gitignore` に少なくとも追加：
+
+```text
+raw_datasets/
+outputs/
+external/co3d/
+*.zip
+*_in_progress/
+```
+
+## 9. 既存コード品質と確認
+
+既存コードに 1 行化された Python がある場合、触るファイルのみ PEP8 形式に整える。ただし既存動作維持を優先し、`build_modelnet.py`, `build_scanobjectnn.py`, `build_cross_sessions.py`, `scripts/utils/normalize.py` への大改変は避ける。
+
+ダミーコードを作成しないこと。実行可能なコードのみ記述しなさい。
+
+実装後、最低限以下を実行：
+
+```bash
+python -m py_compile scripts/build_shapenet.py
+python -m py_compile scripts/build_co3d.py
+python -m py_compile scripts/download_and_build_co3d_category.py
+python -m py_compile scripts/build_cross_shapenet_co3d.py
+python -m py_compile scripts/validate_processed_dataset.py
+python -m py_compile scripts/smoke_test_dataset.py
+```
+
+可能なら dummy data で以下を確認：
+
+```text
+outputs/ShapeNet/<class>/train/*.npy
+outputs/CO3D/<category>/train/*.npy
+outputs/shapenet_co3d/<class_id>/train/*.npy
+shape == (1024,3)
+metadata json exists
+modelnet / scanobjectnn / m2s scripts still import and run
+```
+
+最後に、変更ファイル一覧、各ファイルの役割、ShapeNet / CO3D / S2C の作成コマンド、前処理済み ShapeNet / CO3D / S2C の個別実行コマンド、既存 ModelNet40 / ScanObjectNN / M2S に影響がないことを報告してください。

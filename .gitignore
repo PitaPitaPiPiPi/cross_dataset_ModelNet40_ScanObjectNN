@@ -4,6 +4,7 @@ __pycache__/
 
 # Dataset / experiment outputs
 data/
+raw_datasets/
 outputs/
 outputs_*/
 sample_check.txt
@@ -12,11 +13,14 @@ y/
 
 # External dependencies (local only)
 Pointnet2_PyTorch/
+external/co3d/
+
+# Archives / partial dataset downloads
+*.zip
+*_in_progress/
 
 # Environment
 .env
 .micromamba/
 
 .vscode/
-
-prompt.txt

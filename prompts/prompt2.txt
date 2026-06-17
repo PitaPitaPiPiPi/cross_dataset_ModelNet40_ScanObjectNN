@@ -1,0 +1,349 @@
+現在のリポジトリ `crossdata_MN40_SONN` では、`external/co3d/` に Facebook Research の CO3D 公式リポジトリを clone 済みです。
+
+```bash
+git clone https://github.com/facebookresearch/co3d.git external/co3d
+```
+
+CO3D 公式 README では、1カテゴリ相当の subset をダウンロードする方法として以下が示されています。
+
+```bash
+python ./co3d/download_dataset.py \
+  --download_folder DOWNLOAD_FOLDER \
+  --single_sequence_subset
+```
+
+この仕様を使い、現在の CO3D 処理を次の運用に修正してください。
+
+## 目的
+
+CO3D 全体は巨大なため、全カテゴリを一括保持しない。
+以下を CO3D 全カテゴリに対して category-wise に繰り返す。
+
+```text
+1. 1カテゴリの CO3D subset を download
+2. そのカテゴリだけ preprocess して outputs/CO3D/<category>/train|test/*.npy に追加
+3. preprocess 成功後、download した raw subset を削除
+4. 次カテゴリへ進む
+```
+
+最終的には raw CO3D を全量保持せず、前処理済み `.npy` だけを `outputs/CO3D` に蓄積する。
+
+## 修正対象
+
+主に以下を修正・追加してください。
+
+```text
+scripts/download_and_build_co3d_category.py
+scripts/build_co3d.py
+README.md
+.gitignore
+```
+
+必要なら補助関数を追加してよいですが、既存の ModelNet40 / ScanObjectNN / M2S / ShapeNet / S2C の動作は壊さないでください。
+
+## 重要な設計方針
+
+* `scripts/build_co3d.py` は raw CO3D が既にある場合の前処理専用スクリプトとして維持する。
+* `scripts/download_and_build_co3d_category.py` を、download → preprocess → cleanup を自動で回す orchestration script として強化する。
+* CO3D 公式 repo への依存は `download_and_build_co3d_category.py` に閉じ込める。
+* `build_co3d.py`, `build_cross_shapenet_co3d.py`, `smoke_test_dataset.py`, `validate_processed_dataset.py` は `external/co3d` がなくても import error を起こさないこと。
+* 前処理済み出力 `outputs/CO3D/<category>` は削除しない。
+* 削除するのは download した raw subset のみ。
+* preprocess が失敗したカテゴリの raw data は原則削除しない。再実行・デバッグ可能にする。
+* `--force_cleanup_on_error` が指定された場合のみ、失敗時も raw subset を削除してよい。
+* 各カテゴリの成功・失敗・skip・cleanup 結果を明確にログ出力する。
+
+## CO3D 50 categories
+
+以下を default の処理対象カテゴリとする。`configs/co3d_class_map.json` が存在する場合は、それを source of truth として使う。
+
+```text
+apple, backpack, ball, banana, baseballbat, baseballglove, bench, bicycle, book, bottle,
+bowl, broccoli, cake, car, carrot, cellphone, chair, couch, cup, donut,
+frisbee, hairdryer, handbag, hotdog, hydrant, keyboard, kite, laptop, microwave, motorcycle,
+mouse, orange, parkingmeter, pizza, plant, remote, sandwich, skateboard, stopsign, suitcase,
+teddybear, toaster, toilet, toybus, toyplane, toytruck, tv, umbrella, vase, wineglass
+```
+
+## `download_and_build_co3d_category.py` の新仕様
+
+このスクリプトを、単一カテゴリ・複数カテゴリ・全カテゴリの逐次処理に対応させる。
+
+CLI は最低限以下を持つ。
+
+```text
+--co3d_repo external/co3d
+--download_folder raw_datasets/co3d
+--out_root outputs
+--category apple
+--categories apple,backpack
+--all_categories
+--num_points 1024
+--workers 4
+--seed 42
+--skip_existing
+--overwrite
+--download_only
+--process_only
+--cleanup_raw
+--no_cleanup_raw
+--force_cleanup_on_error
+--single_sequence_subset
+--strict
+```
+
+既定挙動：
+
+* `--category`, `--categories`, `--all_categories` のいずれかで対象カテゴリを決める。
+* 何も指定されない場合は error にする。
+* `--single_sequence_subset` は既定で有効にしてよい。
+* `--cleanup_raw` を既定で有効にしてよい。ただし preprocess 成功後のみ削除する。
+* `--no_cleanup_raw` が指定された場合は raw subset を残す。
+* `--skip_existing` 既定。既に `outputs/CO3D/<category>` に train/test `.npy` が存在する場合、そのカテゴリは download せず skip する。
+* `--overwrite` 指定時は既存 `outputs/CO3D/<category>` を再作成してよい。ただし削除前に明示ログを出す。
+
+## download 方法
+
+CO3D 公式 downloader を subprocess で呼ぶ。
+
+基本形：
+
+```bash
+python external/co3d/co3d/download_dataset.py \
+  --download_folder raw_datasets/co3d \
+  --single_sequence_subset
+```
+
+カテゴリ指定が公式 downloader で可能な場合は、対象カテゴリだけを明示して download する。
+例えば `--download_categories <category>` が使える場合は以下の形を使う。
+
+```bash
+python external/co3d/co3d/download_dataset.py \
+  --download_folder raw_datasets/co3d \
+  --download_categories apple \
+  --single_sequence_subset
+```
+
+もし現在 clone されている CO3D downloader が `--download_categories` を受け付けない場合は、まず `--help` を subprocess で確認し、利用可能な category 指定オプションを自動判定してください。
+
+要件：
+
+* `download_dataset.py --help` を確認し、`--download_categories` が存在すれば使う。
+* 存在しない場合、category-wise download が公式 downloader 単体で可能かをコード上で確認し、可能な引数を使う。
+* category 指定が不可能な場合は、一括 download を勝手に実行しない。
+* その場合は明確な error を出す。
+* error message には「現在の CO3D downloader ではカテゴリ指定 download が確認できないため、安全のため一括 download は実行しない」と書く。
+
+重要：
+全量 5TB 級の download を誤って開始しないようにする。
+カテゴリ指定不能な状態で `--all_categories` や `--single_sequence_subset` だけによる一括 download は絶対に実行しない。
+
+## preprocess 方法
+
+download 成功後、対象カテゴリだけを既存 `build_co3d.py` の処理で前処理する。
+
+内部呼び出しは Python 関数として呼んでも subprocess でもよい。
+ただし、既存 `build_co3d.py` の CLI と互換にする。
+
+例：
+
+```bash
+python -m scripts.build_co3d \
+  --co3d_root raw_datasets/co3d \
+  --out_root outputs \
+  --categories apple \
+  --num_points 1024 \
+  --workers 4 \
+  --seed 42
+```
+
+preprocess 成功条件：
+
+* `outputs/CO3D/<category>/train/*.npy` または `outputs/CO3D/<category>/test/*.npy` が生成される。
+* `.npy` shape が `(num_points, 3)`。
+* NaN / Inf がない。
+* 可能なら `validate_processed_dataset.py --mode single` 相当の軽量検証を category 単位で行う。
+
+## cleanup 方法
+
+preprocess 成功後、download した raw subset を削除する。
+
+削除対象は原則：
+
+```text
+raw_datasets/co3d/<category>/
+```
+
+および category に対応して download された archive / temporary files。
+
+ただし、以下は削除しない。
+
+```text
+raw_datasets/co3d/
+outputs/
+external/co3d/
+configs/
+```
+
+要件：
+
+* cleanup 前に削除対象 path をログ出力する。
+* path が `download_folder` 配下であることを確認してから削除する。
+* `outputs/CO3D` を誤って削除しないように safety check を入れる。
+* preprocess 失敗時は raw subset を残す。
+* `--force_cleanup_on_error` 指定時のみ失敗時も削除する。
+* `--no_cleanup_raw` 指定時は成功時も削除しない。
+
+## category-wise loop
+
+`--all_categories` 指定時は、CO3D 50 categories を順番に処理する。
+
+各カテゴリで以下を行う。
+
+```text
+for category in categories:
+    if output exists and skip_existing:
+        log skip
+        continue
+
+    download category subset
+    preprocess category
+    validate category output
+    cleanup raw subset if success and cleanup enabled
+    log success/failure
+```
+
+処理途中で失敗した場合：
+
+* `--strict` あり：そこで停止し non-zero exit。
+* `--strict` なし：失敗カテゴリを記録し、次カテゴリへ進む。
+* 最後に summary を表示する。
+
+summary には以下を含める。
+
+```text
+succeeded categories
+skipped categories
+failed categories
+cleaned raw categories
+kept raw categories
+output root
+```
+
+## build_co3d.py 側の確認・修正
+
+`build_co3d.py` は、download wrapper から category 単位で安全に呼べる必要があります。
+
+確認点：
+
+* `--categories apple` で apple のみ処理する。
+* 他カテゴリの出力を削除しない。
+* `outputs/CO3D/<category>` だけを作成・更新する。
+* `--skip_existing` / `--overwrite` が正しく動く。
+* `--strict` なしでは raw に存在しないカテゴリを warning して続行。
+* `--strict` ありでは存在しないカテゴリを error。
+* `external/co3d` への import 依存を持たない。
+
+## README 更新
+
+README に以下を追加してください。
+
+### CO3D を全量保持せず category-wise に前処理する方法
+
+```bash
+mkdir -p external
+git clone https://github.com/facebookresearch/co3d.git external/co3d
+
+python -m scripts.download_and_build_co3d_category \
+  --co3d_repo external/co3d \
+  --download_folder raw_datasets/co3d \
+  --out_root outputs \
+  --all_categories \
+  --num_points 1024 \
+  --workers 4 \
+  --cleanup_raw
+```
+
+単一カテゴリ：
+
+```bash
+python -m scripts.download_and_build_co3d_category \
+  --co3d_repo external/co3d \
+  --download_folder raw_datasets/co3d \
+  --out_root outputs \
+  --category apple \
+  --num_points 1024 \
+  --workers 4 \
+  --cleanup_raw
+```
+
+raw を残したい場合：
+
+```bash
+python -m scripts.download_and_build_co3d_category \
+  --co3d_repo external/co3d \
+  --download_folder raw_datasets/co3d \
+  --out_root outputs \
+  --category apple \
+  --num_points 1024 \
+  --workers 4 \
+  --no_cleanup_raw
+```
+
+注意事項として以下を明記：
+
+* 既定では、preprocess 成功後に raw subset を削除する。
+* preprocess 失敗時は raw subset を残す。
+* `--force_cleanup_on_error` を指定した場合のみ失敗時も削除する。
+* category 指定できない downloader では安全のため一括 download を開始しない。
+* `outputs/CO3D` は蓄積対象なので削除しない。
+* `raw_datasets/co3d/<category>` のみ cleanup 対象。
+
+## .gitignore 更新
+
+以下が含まれていることを確認してください。
+
+```text
+raw_datasets/
+outputs/
+external/co3d/
+*.zip
+*_in_progress/
+```
+
+## 検証
+
+実装後に以下を実行してください。
+
+```bash
+python -m py_compile scripts/download_and_build_co3d_category.py
+python -m py_compile scripts/build_co3d.py
+python -m py_compile scripts/validate_processed_dataset.py
+python -m py_compile scripts/smoke_test_dataset.py
+```
+
+可能なら、実際に 1 category だけで確認してください。
+
+```bash
+python -m scripts.download_and_build_co3d_category \
+  --co3d_repo external/co3d \
+  --download_folder raw_datasets/co3d \
+  --out_root outputs \
+  --category apple \
+  --num_points 1024 \
+  --workers 4 \
+  --cleanup_raw
+```
+
+確認項目：
+
+```text
+outputs/CO3D/apple/train/*.npy または test/*.npy が存在
+raw_datasets/co3d/apple/ が preprocess 成功後に削除される
+outputs/CO3D/apple/ は削除されない
+external/co3d/ は削除されない
+smoke_test_dataset.py --dataset co3d が通る
+validate_processed_dataset.py --root outputs/CO3D --mode single が通る
+```
+
+最後に、変更ファイル、処理フロー、単一カテゴリ実行コマンド、全カテゴリ逐次実行コマンド、安全装置、確認結果を報告してください。

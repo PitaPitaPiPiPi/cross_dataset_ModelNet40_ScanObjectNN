@@ -1,0 +1,102 @@
+{
+  "cross_dataset_name": "shapenet_co3d",
+  "dataset_order": ["ShapeNet", "CO3D"],
+  "label_scope": "global_class_id",
+  "sessions": [
+    {
+      "session_id": 1,
+      "dataset": "ShapeNet",
+      "train_classes": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34,
+        35,
+        36,
+        37,
+        38
+      ]
+    },
+    {
+      "session_id": 2,
+      "dataset": "CO3D",
+      "train_classes": [39, 40, 41, 42, 43]
+    },
+    {
+      "session_id": 3,
+      "dataset": "CO3D",
+      "train_classes": [44, 45, 46, 47, 48]
+    },
+    {
+      "session_id": 4,
+      "dataset": "CO3D",
+      "train_classes": [49, 50, 51, 52, 53]
+    },
+    {
+      "session_id": 5,
+      "dataset": "CO3D",
+      "train_classes": [54, 55, 56, 57, 58]
+    },
+    {
+      "session_id": 6,
+      "dataset": "CO3D",
+      "train_classes": [59, 60, 61, 62, 63]
+    },
+    {
+      "session_id": 7,
+      "dataset": "CO3D",
+      "train_classes": [64, 65, 66, 67, 68]
+    },
+    {
+      "session_id": 8,
+      "dataset": "CO3D",
+      "train_classes": [69, 70, 71, 72, 73]
+    },
+    {
+      "session_id": 9,
+      "dataset": "CO3D",
+      "train_classes": [74, 75, 76, 77]
+    },
+    {
+      "session_id": 10,
+      "dataset": "CO3D",
+      "train_classes": [78, 79, 80, 81, 82, 83]
+    },
+    {
+      "session_id": 11,
+      "dataset": "CO3D",
+      "train_classes": [84, 85, 86, 87, 88]
+    }
+  ]
+}

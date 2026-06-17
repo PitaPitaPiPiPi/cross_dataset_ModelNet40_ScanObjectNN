@@ -1,0 +1,239 @@
+{
+  "dataset": "ShapeNet",
+  "classes": [
+    {
+      "class_name": "airplane",
+      "class_dir": "airplane",
+      "aliases": ["airplane", "plane", "aeroplane"],
+      "synset_id": "02691156"
+    },
+    {
+      "class_name": "trash_bin",
+      "class_dir": "trash_bin",
+      "aliases": ["trash bin", "trash_bin", "trashcan", "garbage_can", "bin"],
+      "synset_id": "02747177"
+    },
+    {
+      "class_name": "basket",
+      "class_dir": "basket",
+      "aliases": ["basket"],
+      "synset_id": "02801938"
+    },
+    {
+      "class_name": "bathtub",
+      "class_dir": "bathtub",
+      "aliases": ["bathtub", "bath_tub"],
+      "synset_id": "02808440"
+    },
+    {
+      "class_name": "bed",
+      "class_dir": "bed",
+      "aliases": ["bed"],
+      "synset_id": "02818832"
+    },
+    {
+      "class_name": "birdhouse",
+      "class_dir": "birdhouse",
+      "aliases": ["birdhouse", "bird_house"],
+      "synset_id": "02843684"
+    },
+    {
+      "class_name": "bookshelf",
+      "class_dir": "bookshelf",
+      "aliases": ["bookshelf", "bookcase", "book_shelf"],
+      "synset_id": "02871439"
+    },
+    {
+      "class_name": "bus",
+      "class_dir": "bus",
+      "aliases": ["bus"],
+      "synset_id": "02924116"
+    },
+    {
+      "class_name": "cabinet",
+      "class_dir": "cabinet",
+      "aliases": ["cabinet"],
+      "synset_id": "02933112"
+    },
+    {
+      "class_name": "camera",
+      "class_dir": "camera",
+      "aliases": ["camera"],
+      "synset_id": "02942699"
+    },
+    {
+      "class_name": "can",
+      "class_dir": "can",
+      "aliases": ["can", "tin_can"],
+      "synset_id": "02946921"
+    },
+    {
+      "class_name": "cap",
+      "class_dir": "cap",
+      "aliases": ["cap", "hat"],
+      "synset_id": "02954340"
+    },
+    {
+      "class_name": "clock",
+      "class_dir": "clock",
+      "aliases": ["clock"],
+      "synset_id": "03046257"
+    },
+    {
+      "class_name": "dishwasher",
+      "class_dir": "dishwasher",
+      "aliases": ["dishwasher", "dish_washer"],
+      "synset_id": "03207941"
+    },
+    {
+      "class_name": "display",
+      "class_dir": "display",
+      "aliases": ["display", "monitor", "screen"],
+      "synset_id": "03211117"
+    },
+    {
+      "class_name": "faucet",
+      "class_dir": "faucet",
+      "aliases": ["faucet", "tap"],
+      "synset_id": "03325088"
+    },
+    {
+      "class_name": "file_cabinet",
+      "class_dir": "file_cabinet",
+      "aliases": ["file cabinet", "file_cabinet", "filing_cabinet"],
+      "synset_id": "03337140"
+    },
+    {
+      "class_name": "guitar",
+      "class_dir": "guitar",
+      "aliases": ["guitar"],
+      "synset_id": "03467517"
+    },
+    {
+      "class_name": "helmet",
+      "class_dir": "helmet",
+      "aliases": ["helmet"],
+      "synset_id": "03513137"
+    },
+    {
+      "class_name": "jar",
+      "class_dir": "jar",
+      "aliases": ["jar"],
+      "synset_id": "03593526"
+    },
+    {
+      "class_name": "knife",
+      "class_dir": "knife",
+      "aliases": ["knife"],
+      "synset_id": "03624134"
+    },
+    {
+      "class_name": "lamp",
+      "class_dir": "lamp",
+      "aliases": ["lamp"],
+      "synset_id": "03636649"
+    },
+    {
+      "class_name": "loudspeaker",
+      "class_dir": "loudspeaker",
+      "aliases": ["loudspeaker", "speaker"],
+      "synset_id": "03691459"
+    },
+    {
+      "class_name": "mailbox",
+      "class_dir": "mailbox",
+      "aliases": ["mailbox", "mail_box"],
+      "synset_id": "03710193"
+    },
+    {
+      "class_name": "microphone",
+      "class_dir": "microphone",
+      "aliases": ["microphone", "mic"],
+      "synset_id": "03759954"
+    },
+    {
+      "class_name": "mug",
+      "class_dir": "mug",
+      "aliases": ["mug", "cup"],
+      "synset_id": "03797390"
+    },
+    {
+      "class_name": "piano",
+      "class_dir": "piano",
+      "aliases": ["piano"],
+      "synset_id": "03928116"
+    },
+    {
+      "class_name": "pillow",
+      "class_dir": "pillow",
+      "aliases": ["pillow"],
+      "synset_id": "03938244"
+    },
+    {
+      "class_name": "pistol",
+      "class_dir": "pistol",
+      "aliases": ["pistol", "handgun"],
+      "synset_id": "03948459"
+    },
+    {
+      "class_name": "flowerpot",
+      "class_dir": "flowerpot",
+      "aliases": ["flowerpot", "flower_pot", "plant_pot"],
+      "synset_id": "03991062"
+    },
+    {
+      "class_name": "printer",
+      "class_dir": "printer",
+      "aliases": ["printer"],
+      "synset_id": "04004475"
+    },
+    {
+      "class_name": "rifle",
+      "class_dir": "rifle",
+      "aliases": ["rifle"],
+      "synset_id": "04090263"
+    },
+    {
+      "class_name": "rocket",
+      "class_dir": "rocket",
+      "aliases": ["rocket"],
+      "synset_id": "04099429"
+    },
+    {
+      "class_name": "stove",
+      "class_dir": "stove",
+      "aliases": ["stove", "range"],
+      "synset_id": "04330267"
+    },
+    {
+      "class_name": "table",
+      "class_dir": "table",
+      "aliases": ["table"],
+      "synset_id": "04379243"
+    },
+    {
+      "class_name": "tower",
+      "class_dir": "tower",
+      "aliases": ["tower"],
+      "synset_id": "04460130"
+    },
+    {
+      "class_name": "train",
+      "class_dir": "train",
+      "aliases": ["train"],
+      "synset_id": "04468005"
+    },
+    {
+      "class_name": "vessel",
+      "class_dir": "vessel",
+      "aliases": ["vessel", "boat", "ship", "watercraft"],
+      "synset_id": "04530566"
+    },
+    {
+      "class_name": "washer",
+      "class_dir": "washer",
+      "aliases": ["washer", "washing_machine"],
+      "synset_id": "04554684"
+    }
+  ]
+}
