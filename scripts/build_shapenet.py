@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# python -m scripts.build_shapenet --shapenet_root /path/to/ShapeNet --out_root outputs --num_points 1024
 import argparse
 import glob
 import hashlib
@@ -71,7 +72,7 @@ def discover_samples(shapenet_root, class_aliases):
     for class_root in sorted([p for p in root.iterdir() if p.is_dir()]):
         entry = class_aliases.get(normalize_key(class_root.name))
         if entry is None:
-            logger.warning(f"Skipping unknown ShapeNet class folder: {class_root}")
+            logger.warning(f"Skip unknown class folder: {class_root}")
             continue
 
         class_name = entry["class_name"]
@@ -335,7 +336,7 @@ def process_one_sample(task):
             "shape": tuple(points.shape),
         }
     except Exception as exc:
-        logger.exception(f"Failed processing {task['src']}: {exc}")
+        logger.exception(f"Failed: {task['src']}: {exc}")
         return {"ok": False, "src": task["src"], "error": str(exc)}
 
 
@@ -390,7 +391,7 @@ def summarize(out_root):
     if first_sample is not None:
         logger.info(f"ShapeNet sample shape: {np.load(first_sample).shape}")
     else:
-        logger.warning("ShapeNet sample shape unavailable: no .npy files found")
+        logger.warning("ShapeNet: no sample for shape check")
 
 
 def build_shapenet(args):
@@ -411,14 +412,14 @@ def build_shapenet(args):
     )
     samples = split_samples + assigned_samples
     logger.info(
-        f"Found {len(samples)} ShapeNet samples "
-        f"({len(split_samples)} pre-split, {len(assigned_samples)} manifest-split)"
+        f"ShapeNet inputs: {len(samples)} "
+        f"({len(split_samples)} pre-split, {len(assigned_samples)} split by manifest)"
     )
     if manifest["classes"]:
         save_split_manifest(args.out_root, manifest)
 
     if not samples:
-        logger.warning("No ShapeNet input files found")
+        logger.warning("No ShapeNet input files found.")
         return
 
     tasks = build_tasks(samples, args.shapenet_root, args.out_root, args)

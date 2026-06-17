@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# python -m scripts.build_cross_sessions --modelnet_root outputs/ModelNet --scanobjectnn_root outputs/ScanObjectNN --out_root outputs
 import os
 import argparse
 import glob
@@ -54,14 +55,14 @@ def gather_files_for_class(root_dir, class_name, split):
 def copy_class_split(class_id, class_name, split, src_root, out_root):
     files = gather_files_for_class(src_root, class_name, split)
     if len(files) == 0:
-        logger.warning(f"No samples for class {class_id} ({class_name}) split={split}")
+        logger.warning(f"No samples: class_id={class_id} class={class_name} split={split}")
         return 0
     out_dir = os.path.join(out_root, 'modelnet_scanobjectnn', str(class_id), split)
     os.makedirs(out_dir, exist_ok=True)
     for f in files:
         dst = os.path.join(out_dir, os.path.basename(f))
         shutil.copy2(f, dst)
-    logger.info(f"Copied {len(files)} files for class {class_id} split={split}")
+    logger.info(f"Copied {len(files)} files: class_id={class_id} split={split}")
     return len(files)
 
 def build_cross_dataset(modelnet_root, scanobjectnn_root, out_root):
@@ -83,10 +84,10 @@ def build_cross_dataset(modelnet_root, scanobjectnn_root, out_root):
         else:
             scanobject_train += train_count
             scanobject_test += test_count
-    logger.info(f"ModelNet (0-25) train samples: {modelnet_train}")
-    logger.info(f"ModelNet (0-25) test samples: {modelnet_test}")
-    logger.info(f"ScanObjectNN (26-36) train samples: {scanobject_train}")
-    logger.info(f"ScanObjectNN (26-36) test samples: {scanobject_test}")
+    logger.info(f"ModelNet train: {modelnet_train}")
+    logger.info(f"ModelNet test: {modelnet_test}")
+    logger.info(f"ScanObjectNN train: {scanobject_train}")
+    logger.info(f"ScanObjectNN test: {scanobject_test}")
 
 if __name__ == '__main__':
     p = argparse.ArgumentParser()

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# python scripts/visualize_npy_sample.py --input processed/sample.npy
 """
 visualize_npy_sample.py
 

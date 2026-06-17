@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# python -m scripts.validate_processed_dataset --root outputs/CO3D --mode single --num_points 1024
 import argparse
 from pathlib import Path
 

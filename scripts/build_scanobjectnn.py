@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# python -m scripts.build_scanobjectnn --h5_root raw_datasets/scanobjectnn/h5_files --out_root outputs
 import os
 import argparse
 import glob
@@ -59,7 +60,7 @@ def process_single_sample(args_tuple):
         save_npy_and_meta(out_npy, pts, meta)
         return out_npy
     except Exception as e:
-        logger.exception(f"Failed sample {h5_path} idx {idx}: {e}")
+        logger.exception(f"Failed: {h5_path} idx={idx}: {e}")
         return None
 
 def process_h5_file(h5_path, out_root, split, workers, chunk_size, num_points):
@@ -72,9 +73,9 @@ def process_h5_file(h5_path, out_root, split, workers, chunk_size, num_points):
             futures = [exe.submit(process_single_sample, args) for args in args_list]
             for fut in as_completed(futures):
                 _ = fut.result()
-        logger.info(f"Finished processing h5: {h5_path} ({split})")
+        logger.info(f"Finished: {h5_path} ({split})")
     except Exception as e:
-        logger.exception(f"Failed processing h5 {h5_path}: {e}")
+        logger.exception(f"Failed: {h5_path}: {e}")
 
 if __name__ == '__main__':
     p = argparse.ArgumentParser()
@@ -102,20 +103,20 @@ if __name__ == '__main__':
     test_count = len(glob.glob(os.path.join(args.out_root, 'ScanObjectNN', '*', 'test', '*.npy')))
     train_files = sorted(glob.glob(os.path.join(args.out_root, 'ScanObjectNN', '*', 'train', '*.npy')))
     test_files = sorted(glob.glob(os.path.join(args.out_root, 'ScanObjectNN', '*', 'test', '*.npy')))
-    logger.info(f"ScanObjectNN train samples: {train_count}")
-    logger.info(f"ScanObjectNN test samples: {test_count}")
-    logger.info("ScanObjectNN per-class sample counts:")
+    logger.info(f"ScanObjectNN train: {train_count}")
+    logger.info(f"ScanObjectNN test: {test_count}")
+    logger.info("ScanObjectNN per-class counts:")
     for class_name in SCANOBJECTNN_CLASS_NAMES:
         class_train = len(glob.glob(os.path.join(args.out_root, 'ScanObjectNN', class_name, 'train', '*.npy')))
         class_test = len(glob.glob(os.path.join(args.out_root, 'ScanObjectNN', class_name, 'test', '*.npy')))
-        logger.info(f"  {class_name} train={class_train} test={class_test}")
+        logger.info(f"  {class_name}: train={class_train} test={class_test}")
     if train_files:
         train_shape = np.load(train_files[0]).shape
         logger.info(f"ScanObjectNN first train shape: {train_shape}")
     else:
-        logger.warning("ScanObjectNN train samples not found for shape check")
+        logger.warning("No ScanObjectNN train sample found for shape check.")
     if test_files:
         test_shape = np.load(test_files[0]).shape
         logger.info(f"ScanObjectNN first test shape: {test_shape}")
     else:
-        logger.warning("ScanObjectNN test samples not found for shape check")
+        logger.warning("No ScanObjectNN test sample found for shape check.")

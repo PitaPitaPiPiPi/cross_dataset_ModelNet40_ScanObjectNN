@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# python scripts/save_scanvis.py --uni-file /path/to/xyz_label.npy --my-root ~/scanobjectnn --out-uni out_uni --out-my out_my
 """
 save_scanvis.py
 

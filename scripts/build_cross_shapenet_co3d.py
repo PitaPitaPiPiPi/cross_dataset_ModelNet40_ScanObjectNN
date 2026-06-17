@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# python -m scripts.build_cross_shapenet_co3d --shapenet_root outputs/ShapeNet --co3d_root outputs/CO3D --out_root outputs
 import argparse
 import json
 import os

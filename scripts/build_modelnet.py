@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-
-#python -m scripts.build_modelnet --modelnet_root /home/kita/Desktop/master-projects/make_datasets/cross_dataset_ModelNet40_ScanObjectNN/data/ModelNet40 --out_root /home/kita/Desktop/master-projects/make_datasets/cross_dataset_ModelNet40_ScanObjectNN/outputs
+# python -m scripts.build_modelnet --modelnet_root raw_datasets/modelnet40 --out_root outputs
 
 import os
 import glob
@@ -29,10 +28,10 @@ def process_one_off(off_path, out_dir, sample_surface_n, fps_k):
         out_npy = os.path.join(out_dir, base + '.npy')
         meta = dict(orig=off_path, dataset='ModelNet', centroid=centroid.tolist(), scale=scale)
         save_npy_and_meta(out_npy, pts, meta)
-        logger.debug(f"Processed {off_path} -> {out_npy}")
+        logger.debug(f"Saved {out_npy}")
         return out_npy
     except Exception as e:
-        logger.exception(f"Failed processing {off_path}: {e}")
+        logger.exception(f"Failed: {off_path}: {e}")
         return None
 
 def load_point_cloud(npy_path):
@@ -61,10 +60,10 @@ def process_one_npy(npy_path, out_dir, fps_k):
         out_npy = os.path.join(out_dir, base + '.npy')
         meta = dict(orig=npy_path, dataset='ModelNet', centroid=centroid.tolist(), scale=scale)
         save_npy_and_meta(out_npy, pts, meta)
-        logger.debug(f"Processed {npy_path} -> {out_npy}")
+        logger.debug(f"Saved {out_npy}")
         return out_npy
     except Exception as e:
-        logger.exception(f"Failed processing {npy_path}: {e}")
+        logger.exception(f"Failed: {npy_path}: {e}")
         return None
 
 def walk_and_process(modelnet_root, out_root, sample_surface_n, workers, chunk_size, fps_k, sample_from_mesh):
@@ -74,10 +73,10 @@ def walk_and_process(modelnet_root, out_root, sample_surface_n, workers, chunk_s
     for split in ['train', 'test']:
         pattern = os.path.join(modelnet_root, '*', split, f'*.{ext}')
         input_paths.extend(glob.glob(pattern))
-    logger.info(f"Found {len(input_paths)} .{ext} files")
+    logger.info(f"Input files: {len(input_paths)} .{ext}")
     os.makedirs(out_root, exist_ok=True)
     if not input_paths:
-        logger.warning("No input files found; check --modelnet_root and input format")
+        logger.warning("No input files found. Check --modelnet_root and input format.")
         return
     futures = []
     with ProcessPoolExecutor(max_workers=workers) as exe:
@@ -99,28 +98,28 @@ def walk_and_process(modelnet_root, out_root, sample_surface_n, workers, chunk_s
     train_files = sorted(glob.glob(os.path.join(out_root, 'ModelNet', '*', 'train', '*.npy')))
     test_files = sorted(glob.glob(os.path.join(out_root, 'ModelNet', '*', 'test', '*.npy')))
     class_dirs = sorted(glob.glob(os.path.join(out_root, 'ModelNet', '*')))
-    logger.info(f"ModelNet train samples: {train_count}")
-    logger.info(f"ModelNet test samples: {test_count}")
+    logger.info(f"ModelNet train: {train_count}")
+    logger.info(f"ModelNet test: {test_count}")
     if class_dirs:
-        logger.info("ModelNet per-class sample counts:")
+        logger.info("ModelNet per-class counts:")
         for class_dir in class_dirs:
             class_name = os.path.basename(class_dir)
             class_train = len(glob.glob(os.path.join(class_dir, 'train', '*.npy')))
             class_test = len(glob.glob(os.path.join(class_dir, 'test', '*.npy')))
-            logger.info(f"  {class_name} train={class_train} test={class_test}")
+            logger.info(f"  {class_name}: train={class_train} test={class_test}")
     else:
-        logger.warning("ModelNet class directories not found for per-class counts")
+        logger.warning("No ModelNet class directories found.")
     if train_files:
         train_shape = np.load(train_files[0]).shape
         logger.info(f"ModelNet first train shape: {train_shape}")
     else:
-        logger.warning("ModelNet train samples not found for shape check")
+        logger.warning("No ModelNet train sample found for shape check.")
     if test_files:
         test_shape = np.load(test_files[0]).shape
         logger.info(f"ModelNet first test shape: {test_shape}")
     else:
-        logger.warning("ModelNet test samples not found for shape check")
-    logger.info("ModelNet processing finished")
+        logger.warning("No ModelNet test sample found for shape check.")
+    logger.info("ModelNet done")
 
 if __name__ == '__main__':
     p = argparse.ArgumentParser()

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# python -m scripts.download_and_build_co3d_category --co3d_repo external/co3d --download_folder raw_datasets/co3d --out_root outputs --category apple --num_points 1024 --workers 4 --cleanup_raw
 import argparse
 import os
 import shutil
@@ -79,7 +80,7 @@ def remove_category_output(out_root, category):
         return
     if not ensure_under_root(category_dir, co3d_out_root):
         raise RuntimeError(f"Refusing to remove unsafe output path: {category_dir}")
-    logger.warning(f"--overwrite specified; removing existing CO3D output: {category_dir}")
+    logger.warning(f"Overwrite: remove existing output {category_dir}")
     shutil.rmtree(category_dir)
 
 
@@ -136,20 +137,14 @@ def run_downloader(args, category, downloader_options):
         if downloader_options["has_single_sequence_subset"]:
             cmd.append("--single_sequence_subset")
         else:
-            logger.warning(
-                "CO3D downloader help does not expose --single_sequence_subset; "
-                "continuing with category-specific download only"
-            )
+            logger.warning("Downloader help does not expose --single_sequence_subset.")
     if args.clear_archives_after_unpacking:
         if downloader_options["has_clear_archives_after_unpacking"]:
             cmd.append("--clear_archives_after_unpacking")
         else:
-            logger.warning(
-                "CO3D downloader help does not expose --clear_archives_after_unpacking; "
-                "archives will be handled by local cleanup when enabled"
-            )
+            logger.warning("Downloader help does not expose --clear_archives_after_unpacking.")
 
-    logger.info(f"Downloading CO3D category {category}: {' '.join(cmd)}")
+    logger.info(f"Download CO3D: category={category}")
     subprocess.run(cmd, check=True)
 
 
@@ -158,7 +153,7 @@ def get_downloader_options(args, cache):
         options = detect_downloader_options(args.co3d_repo)
         cache["value"] = options
         get_logger("download_and_build_co3d_category").info(
-            f"CO3D downloader category option: {options['category_option']}"
+            f"Downloader category option: {options['category_option']}"
         )
     return cache["value"]
 
@@ -242,14 +237,14 @@ def cleanup_raw(args, category):
     logger = get_logger("download_and_build_co3d_category")
     targets = cleanup_targets(args.download_folder, category)
     if not targets:
-        logger.info(f"No raw cleanup targets found for category {category}")
+        logger.info(f"No raw cleanup targets: category={category}")
         return False
 
     cleaned = False
     for target in targets:
         if not ensure_under_root(target, args.download_folder):
             raise RuntimeError(f"Refusing to cleanup unsafe path: {target}")
-        logger.info(f"Cleaning raw CO3D subset path: {target}")
+        logger.info(f"Cleanup raw path: {target}")
         if target.is_dir():
             shutil.rmtree(target)
         elif target.exists():
@@ -260,7 +255,7 @@ def cleanup_raw(args, category):
 
 def handle_failure(args, category, exc, summary):
     logger = get_logger("download_and_build_co3d_category")
-    logger.exception(f"CO3D category failed: {category}: {exc}")
+    logger.exception(f"Failed category {category}: {exc}")
     summary["failed"].append(category)
 
     if args.force_cleanup_on_error and not args.no_cleanup_raw:
@@ -270,10 +265,10 @@ def handle_failure(args, category, exc, summary):
             else:
                 summary["kept_raw"].append(category)
         except Exception as cleanup_exc:
-            logger.exception(f"Cleanup after failure also failed for {category}: {cleanup_exc}")
+            logger.exception(f"Cleanup failed for {category}: {cleanup_exc}")
             summary["kept_raw"].append(category)
     else:
-        logger.info(f"Keeping raw data for failed category {category}")
+        logger.info(f"Keep raw after failure: {category}")
         summary["kept_raw"].append(category)
 
     if args.strict:
@@ -286,7 +281,7 @@ def process_one(args, category, downloader_options_cache, summary):
     if args.overwrite:
         remove_category_output(args.out_root, category)
     elif args.skip_existing and category_output_exists(args.out_root, category):
-        logger.info(f"Skipping existing processed CO3D category: {category}")
+        logger.info(f"Skip existing output: {category}")
         summary["skipped"].append(category)
         return
 
@@ -294,25 +289,25 @@ def process_one(args, category, downloader_options_cache, summary):
     try:
         if not args.process_only:
             if category_downloaded(args.download_folder, category):
-                logger.info(f"Raw CO3D category already present, skipping download: {category}")
+                logger.info(f"Skip download: raw already present for {category}")
             else:
                 downloader_options = get_downloader_options(args, downloader_options_cache)
                 run_downloader(args, category, downloader_options)
             downloaded_or_present = True
 
         if args.download_only:
-            logger.info(f"download_only enabled; keeping raw category {category}")
+            logger.info(f"Download only: keep raw {category}")
             summary["succeeded"].append(category)
             summary["kept_raw"].append(category)
             return
 
         process_category(args, category)
         sample_count = validate_category_output(args.out_root, category, args.num_points)
-        logger.info(f"Validated CO3D category {category}: {sample_count} samples")
+        logger.info(f"Validated category {category}: {sample_count} samples")
         summary["succeeded"].append(category)
 
         if args.no_cleanup_raw:
-            logger.info(f"no_cleanup_raw enabled; keeping raw category {category}")
+            logger.info(f"Keep raw: {category}")
             summary["kept_raw"].append(category)
         elif downloaded_or_present or args.process_only:
             if cleanup_raw(args, category):
@@ -325,12 +320,12 @@ def process_one(args, category, downloader_options_cache, summary):
 
 def log_summary(args, summary):
     logger = get_logger("download_and_build_co3d_category")
-    logger.info("CO3D category-wise summary")
-    logger.info(f"  succeeded categories: {summary['succeeded']}")
-    logger.info(f"  skipped categories: {summary['skipped']}")
-    logger.info(f"  failed categories: {summary['failed']}")
-    logger.info(f"  cleaned raw categories: {summary['cleaned']}")
-    logger.info(f"  kept raw categories: {summary['kept_raw']}")
+    logger.info("Summary")
+    logger.info(f"  succeeded: {summary['succeeded']}")
+    logger.info(f"  skipped: {summary['skipped']}")
+    logger.info(f"  failed: {summary['failed']}")
+    logger.info(f"  cleaned raw: {summary['cleaned']}")
+    logger.info(f"  kept raw: {summary['kept_raw']}")
     logger.info(f"  output root: {Path(args.out_root) / 'CO3D'}")
 
 
@@ -343,7 +338,7 @@ def run(args):
         raise ValueError("--download_only and --process_only cannot be used together")
 
     categories = resolve_category_targets(args)
-    logger.info(f"CO3D category-wise targets: {', '.join(categories)}")
+    logger.info(f"Targets: {', '.join(categories)}")
 
     downloader_options_cache = {"value": None}
     summary = {
@@ -358,9 +353,7 @@ def run(args):
 
     log_summary(args, summary)
     if summary["failed"]:
-        logger.warning(
-            "Some CO3D categories failed. Re-run with --strict to stop at the first failure."
-        )
+        logger.warning("Some categories failed. Re-run with --strict to stop on first failure.")
 
 
 def parse_args():

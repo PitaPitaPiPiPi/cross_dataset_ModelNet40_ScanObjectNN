@@ -1,3 +1,4 @@
+# python scripts/sc_count.py
 import h5py
 import numpy as np
 from collections import Counter

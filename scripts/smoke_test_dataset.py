@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# python -m scripts.smoke_test_dataset --dataset co3d --data_root outputs/CO3D --split train
 import argparse
 import json
 from pathlib import Path
@@ -173,8 +174,8 @@ def run(args):
     print(f"split: {args.split}")
     if args.session is not None:
         print(f"session: {args.session}")
-    print(f"number of classes: {class_count}")
-    print(f"number of samples: {len(samples)}")
+    print(f"classes: {class_count}")
+    print(f"samples: {len(samples)}")
     print(f"first sample shape: {first.shape}")
     print(f"first label: {first_label}")
     if metadata is not None:

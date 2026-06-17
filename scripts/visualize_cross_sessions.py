@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# python scripts/visualize_cross_sessions.py --out_root outputs
 """
 Visualize and verify class_id-based cross-dataset structure.
 

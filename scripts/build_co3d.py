@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# python -m scripts.build_co3d --co3d_root raw_datasets/co3d --out_root outputs --categories apple,backpack --num_points 1024
 import argparse
 import hashlib
 import json
@@ -124,10 +125,10 @@ def split_from_set_lists(category_dir, sequences):
                 data = json.load(f)
             collect_set_list_sequences(data, known_sequences, file_split, seq_to_splits)
         except Exception as exc:
-            logger.warning(f"Could not parse set_list {json_path}: {exc}")
+            logger.warning(f"Skip unreadable set_list: {json_path}: {exc}")
 
     if not seq_to_splits:
-        logger.warning(f"No usable sequence split found in {set_lists_dir}")
+        logger.warning(f"No usable split in {set_lists_dir}")
         return None
 
     conflicts = {
@@ -135,15 +136,13 @@ def split_from_set_lists(category_dir, sequences):
     }
     if conflicts:
         logger.warning(
-            f"set_lists split frame-level/conflicting sequences detected; "
-            f"falling back to deterministic split for {Path(category_dir).name}"
+            f"set_lists conflicts detected; fallback to deterministic split: {Path(category_dir).name}"
         )
         return None
 
     if set(seq_to_splits) != known_sequences:
         logger.warning(
-            f"set_lists do not cover all sequences for {Path(category_dir).name}; "
-            "falling back to deterministic split"
+            f"set_lists incomplete; fallback to deterministic split: {Path(category_dir).name}"
         )
         return None
 
@@ -155,8 +154,7 @@ def split_from_set_lists(category_dir, sequences):
     split_map["test"].sort()
     if not split_map["train"] or not split_map["test"]:
         logger.warning(
-            f"set_lists for {Path(category_dir).name} lack train or test; "
-            "falling back to deterministic split"
+            f"set_lists missing train or test; fallback to deterministic split: {Path(category_dir).name}"
         )
         return None
     return split_map
@@ -282,9 +280,7 @@ def sanitize_points(points, num_points, context):
         raise ValueError(f"{context}: point cloud is empty after filtering")
 
     if points.shape[0] < num_points:
-        logger.warning(
-            f"{context}: only {points.shape[0]} points; deterministic repeat to {num_points}"
-        )
+        logger.warning(f"{context}: pad {points.shape[0]} -> {num_points}")
         repeats = int(np.ceil(num_points / points.shape[0]))
         points = np.tile(points, (repeats, 1))[:num_points]
     return points.astype(np.float32)
@@ -333,7 +329,7 @@ def process_sequence(task):
             "shape": tuple(points.shape),
         }
     except Exception as exc:
-        logger.exception(f"Failed processing {task['src']}: {exc}")
+        logger.exception(f"Failed: {task['src']}: {exc}")
         return {"ok": False, "src": task["src"], "error": str(exc)}
 
 
@@ -359,7 +355,7 @@ def summarize_category(out_root, category):
     if files:
         logger.info(f"CO3D {category} sample shape: {np.load(files[0]).shape}")
     else:
-        logger.warning(f"CO3D {category} sample shape unavailable")
+        logger.warning(f"CO3D {category}: no sample for shape check")
 
 
 def build_category(category, args):
@@ -441,12 +437,12 @@ def build_co3d(args):
         raise ValueError("--skip_existing and --overwrite cannot be used together")
 
     categories = parse_categories(args.categories)
-    logger.info(f"CO3D categories requested: {', '.join(categories)}")
+    logger.info(f"CO3D categories: {', '.join(categories)}")
     results = []
     for category in categories:
         results.append(build_category(category, args))
     processed = sum(result["processed"] for result in results)
-    logger.info(f"CO3D processing finished; processed samples={processed}")
+    logger.info(f"CO3D done: processed={processed}")
 
 
 def parse_args():
