@@ -21,6 +21,7 @@ from scripts.utils.normalize import pc_normalize_unified
 SUPPORTED_EXTS = {".obj", ".off", ".ply", ".npy"}
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CONFIG_PATH = REPO_ROOT / "configs" / "shapenet_class_map.json"
+CROSS_CONFIG_PATH = REPO_ROOT / "configs" / "shapenet_co3d_class_map.json"
 
 
 def normalize_key(value):
@@ -60,7 +61,7 @@ def output_stem(src, root):
     return safe_name("__".join(rel.parts))
 
 
-def discover_samples(shapenet_root, class_aliases):
+def discover_samples(shapenet_root, class_aliases, selected_class_dirs=None):
     root = Path(shapenet_root)
     logger = get_logger("build_shapenet")
     samples = []
@@ -77,6 +78,8 @@ def discover_samples(shapenet_root, class_aliases):
 
         class_name = entry["class_name"]
         class_dir = entry["class_dir"]
+        if selected_class_dirs is not None and class_dir not in selected_class_dirs:
+            continue
         split_dirs = {
             split: class_root / split
             for split in ("train", "test")
@@ -402,8 +405,26 @@ def build_shapenet(args):
     if args.skip_existing and args.overwrite:
         raise ValueError("--skip_existing and --overwrite cannot be used together")
 
-    _, aliases = load_class_map()
-    split_samples, splitless_samples = discover_samples(args.shapenet_root, aliases)
+    entries, aliases = load_class_map()
+    selected_class_dirs = None
+    if getattr(args, "cross_classes_only", False):
+        with open(CROSS_CONFIG_PATH, "r", encoding="utf-8") as f:
+            cross_entries = json.load(f)["classes"]
+        selected_class_dirs = {
+            entry["class_dir"]
+            for entry in cross_entries
+            if entry["dataset"] == "ShapeNet"
+        }
+        known_class_dirs = {entry["class_dir"] for entry in entries}
+        unknown = sorted(selected_class_dirs - known_class_dirs)
+        if unknown:
+            raise ValueError(f"Unknown ShapeNet classes in cross class map: {unknown}")
+        logger.info(
+            f"ShapeNet cross classes only: {len(selected_class_dirs)} classes"
+        )
+    split_samples, splitless_samples = discover_samples(
+        args.shapenet_root, aliases, selected_class_dirs
+    )
     assigned_samples, manifest = deterministic_split(
         splitless_samples,
         args.shapenet_root,
@@ -438,6 +459,7 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--shapenet_root", required=True)
     parser.add_argument("--out_root", required=True)
+    parser.add_argument("--cross_classes_only", action="store_true")
     parser.add_argument("--num_points", type=int, default=1024)
     parser.add_argument("--sample_surface_n", type=int, default=10000)
     parser.add_argument("--train_ratio", type=float, default=0.8)

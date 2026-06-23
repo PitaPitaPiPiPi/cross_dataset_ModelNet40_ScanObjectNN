@@ -126,6 +126,31 @@ class_id 対応は `configs/sessions.json` と既存実装に従います。
 
 ## 6. ShapeNet を作る
 
+### Hugging Face からShapeNetCoreを取得する
+
+`ShapeNet/ShapeNetCore` はHugging Face側で利用申請・承認が必要です。承認後、事前に次を実行してください。
+
+```bash
+pip install -U huggingface_hub
+hf auth login
+```
+
+zipを一括downloadして展開します。
+
+```bash
+python -m scripts.download_shapenetcore_from_hf \
+  --zip_root raw_datasets/shapenet_zips \
+  --out_root raw_datasets/shapenet
+```
+
+処理完了時に表示される推奨rootを `--shapenet_root` に渡して、後述の `scripts.build_shapenet` を実行してください。これはzipを展開してから `.npy` 化する設計であり、現状ではzipの直読みは不要です。
+
+- downloadを行わず既存zipだけ展開する: `--skip_download`
+- downloadだけ行う: `--skip_extract`
+- 実処理なしで予定を確認する: `--dry_run`
+- 展開成功後にzipを削除して容量を節約する: `--remove_zips_after_extract`
+- 展開済みrawも削除する場合は、ユーザが手動で `raw_datasets/shapenet` を削除してください
+
 ```bash
 python -m scripts.build_shapenet \
   --shapenet_root /path/to/ShapeNet \
@@ -134,8 +159,22 @@ python -m scripts.build_shapenet \
   --workers 4
 ```
 
+### cross dataset 対象クラスだけを作る
+
+```bash
+python -m scripts.build_shapenet \
+  --shapenet_root /path/to/ShapeNet \
+  --out_root outputs \
+  --cross_classes_only \
+  --num_points 1024 \
+  --workers 4
+```
+
+対象クラスは `configs/shapenet_co3d_class_map.json` の `dataset: ShapeNet` から取得します。
+
 主なオプション:
 
+- `--cross_classes_only`
 - `--sample_surface_n 10000`
 - `--train_ratio 0.8`
 - `--seed 42`
@@ -159,6 +198,23 @@ outputs/ShapeNet/split_manifest.json
 ## 7. CO3D を category-wise に作る
 
 CO3D は巨大なので、category ごとに download -> preprocess -> raw cleanup を回します。
+
+この wrapper は `--download_folder` を必要に応じて作成します。CO3D の downloader を直接叩く場合だけ、先に `mkdir -p raw_datasets/co3d` が必要です。
+
+### cross dataset 対象カテゴリだけをdownload・前処理する
+
+```bash
+python -m scripts.download_and_build_co3d_category \
+  --co3d_repo external/co3d \
+  --download_folder raw_datasets/co3d \
+  --out_root outputs \
+  --cross_classes_only \
+  --num_points 1024 \
+  --workers 4 \
+  --cleanup_raw
+```
+
+対象カテゴリは `configs/shapenet_co3d_class_map.json` の `dataset: CO3D` から取得します。
 
 ### 全カテゴリ
 
@@ -214,7 +270,7 @@ python -m scripts.download_and_build_co3d_category \
 
 この wrapper の既定動作:
 
-- 対象は `--category` / `--categories` / `--all_categories` のどれか 1 つ
+- 対象は `--category` / `--categories` / `--all_categories` / `--cross_classes_only` のどれか 1 つ
 - `download_dataset.py --help` を見て、category 指定可能な downloader だけを使う
 - category 指定不能なら一括 download はしない
 - preprocess 成功後のみ raw subset を削除する
@@ -230,6 +286,7 @@ python -m scripts.download_and_build_co3d_category \
 - `--category apple`
 - `--categories apple,backpack`
 - `--all_categories`
+- `--cross_classes_only`
 - `--num_points 1024`
 - `--workers 4`
 - `--seed 42`
@@ -261,13 +318,25 @@ python -m scripts.build_co3d \
   --workers 4
 ```
 
-`--categories` を省略すると `configs/co3d_class_map.json` の全 50 category を使います。
+cross dataset 対象カテゴリだけを処理する場合:
+
+```bash
+python -m scripts.build_co3d \
+  --co3d_root raw_datasets/co3d \
+  --out_root outputs \
+  --cross_classes_only \
+  --num_points 1024 \
+  --workers 4
+```
+
+`--categories` と `--cross_classes_only` を両方指定することはできません。どちらも省略すると `configs/co3d_class_map.json` の全 50 category を使います。
 
 主な CLI オプション:
 
 - `--co3d_root raw_datasets/co3d`
 - `--out_root outputs`
 - `--categories apple,backpack`
+- `--cross_classes_only`
 - `--num_points 1024`
 - `--train_ratio 0.8`
 - `--workers 4`
@@ -302,6 +371,8 @@ outputs/shapenet_co3d/<class_id>/train|test/*.json
 ```
 
 class_id は global `0..88` のまま保持します。session 情報は `configs/shapenet_co3d_sessions.json` にあります。
+
+現在の `configs/shapenet_co3d_class_map.json` は、設定済みの ShapeNet 39クラスと CO3D 50カテゴリをすべてcross対象にしています。そのため現時点では `--cross_classes_only` の件数は各datasetの全設定クラスと同じですが、対応表を絞ればCLIの対象も自動で追従します。
 
 ## 10. 生成後の確認
 

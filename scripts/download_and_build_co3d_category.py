@@ -10,7 +10,7 @@ from pathlib import Path
 
 import numpy as np
 
-from scripts.build_co3d import build_category, parse_categories
+from scripts.build_co3d import build_category, parse_categories, parse_cross_categories
 from scripts.utils.logger import get_logger
 
 
@@ -32,11 +32,17 @@ def resolve_category_targets(args):
         bool(args.category),
         bool(args.categories),
         bool(args.all_categories),
+        bool(args.cross_classes_only),
     ]
     if sum(target_sources) != 1:
-        raise ValueError("Specify exactly one of --category, --categories, or --all_categories")
+        raise ValueError(
+            "Specify exactly one of --category, --categories, --all_categories, "
+            "or --cross_classes_only"
+        )
     if args.all_categories:
         return parse_categories(None)
+    if args.cross_classes_only:
+        return parse_cross_categories()
     return parse_categories(args.category or args.categories)
 
 
@@ -51,15 +57,7 @@ def category_downloaded(download_folder, category):
     category_dir = Path(download_folder) / category
     if not category_dir.exists():
         return False
-    if any(category_dir.glob("*/pointcloud.ply")):
-        return True
-    if (category_dir / "set_lists").exists():
-        return True
-    if (category_dir / "frame_annotations.jgz").exists():
-        return True
-    if (category_dir / "sequence_annotations.jgz").exists():
-        return True
-    return any(category_dir.iterdir())
+    return any(category_dir.glob("*/pointcloud.ply"))
 
 
 def ensure_under_root(path, root):
@@ -119,6 +117,7 @@ def detect_downloader_options(co3d_repo):
         "category_option": category_option,
         "has_single_sequence_subset": "--single_sequence_subset" in help_text,
         "has_clear_archives_after_unpacking": "--clear_archives_after_unpacking" in help_text,
+        "has_redownload_existing_archives": "--redownload_existing_archives" in help_text,
     }
 
 
@@ -143,6 +142,8 @@ def run_downloader(args, category, downloader_options):
             cmd.append("--clear_archives_after_unpacking")
         else:
             logger.warning("Downloader help does not expose --clear_archives_after_unpacking.")
+    if downloader_options["has_redownload_existing_archives"]:
+        cmd.append("--redownload_existing_archives")
 
     logger.info(f"Download CO3D: category={category}")
     subprocess.run(cmd, check=True)
@@ -337,6 +338,8 @@ def run(args):
     if args.download_only and args.process_only:
         raise ValueError("--download_only and --process_only cannot be used together")
 
+    Path(args.download_folder).mkdir(parents=True, exist_ok=True)
+
     categories = resolve_category_targets(args)
     logger.info(f"Targets: {', '.join(categories)}")
 
@@ -364,6 +367,7 @@ def parse_args():
     parser.add_argument("--category", default=None)
     parser.add_argument("--categories", default=None)
     parser.add_argument("--all_categories", action="store_true")
+    parser.add_argument("--cross_classes_only", action="store_true")
     parser.add_argument("--num_points", type=int, default=1024)
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--seed", type=int, default=42)
@@ -375,7 +379,7 @@ def parse_args():
     parser.add_argument("--cleanup_raw", dest="no_cleanup_raw", action="store_false", default=False)
     parser.add_argument("--no_cleanup_raw", dest="no_cleanup_raw", action="store_true")
     parser.add_argument("--force_cleanup_on_error", action="store_true")
-    parser.add_argument("--single_sequence_subset", action="store_true", default=True)
+    parser.add_argument("--single_sequence_subset", action="store_true", default=False)
     parser.add_argument("--no_single_sequence_subset", dest="single_sequence_subset", action="store_false")
     parser.add_argument("--strict", action="store_true")
     parser.add_argument("--clear_archives_after_unpacking", action="store_true")

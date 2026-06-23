@@ -18,6 +18,26 @@ from scripts.utils.normalize import pc_normalize_unified
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CONFIG_PATH = REPO_ROOT / "configs" / "co3d_class_map.json"
+CROSS_CONFIG_PATH = REPO_ROOT / "configs" / "shapenet_co3d_class_map.json"
+
+PLY_SCALAR_DTYPES = {
+    "char": "i1",
+    "int8": "i1",
+    "uchar": "u1",
+    "uint8": "u1",
+    "short": "i2",
+    "int16": "i2",
+    "ushort": "u2",
+    "uint16": "u2",
+    "int": "i4",
+    "int32": "i4",
+    "uint": "u4",
+    "uint32": "u4",
+    "float": "f4",
+    "float32": "f4",
+    "double": "f8",
+    "float64": "f8",
+}
 
 
 def normalize_key(value):
@@ -56,6 +76,22 @@ def parse_categories(categories_arg):
         if category is None:
             raise ValueError(f"Unknown CO3D category: {raw}")
         categories.append(category)
+    return categories
+
+
+def parse_cross_categories(cross_config_path=CROSS_CONFIG_PATH):
+    entries, _ = load_category_map()
+    known_categories = {entry["class_dir"] for entry in entries}
+    with open(cross_config_path, "r", encoding="utf-8") as f:
+        cross_entries = json.load(f)["classes"]
+    categories = [
+        entry["class_dir"]
+        for entry in cross_entries
+        if entry["dataset"] == "CO3D"
+    ]
+    unknown = sorted(set(categories) - known_categories)
+    if unknown:
+        raise ValueError(f"Unknown CO3D categories in cross class map: {unknown}")
     return categories
 
 
@@ -203,33 +239,58 @@ def save_split_manifest(out_root, category, split_map, split_source, seed, train
 
 
 def load_ply_points(path):
-    try:
-        import open3d as o3d
+    with open(path, "rb") as f:
+        if f.readline().rstrip(b"\r\n") != b"ply":
+            raise ValueError(f"Not a PLY file: {path}")
+        ply_format = None
+        vertex_count = None
+        in_vertex_element = False
+        vertex_properties = []
+        while True:
+            line = f.readline()
+            if not line:
+                raise ValueError(f"Unexpected EOF in PLY header: {path}")
+            try:
+                parts = line.decode("ascii").strip().split()
+            except UnicodeDecodeError as exc:
+                raise ValueError(f"PLY header is not ASCII: {path}") from exc
+            if not parts or parts[0] in {"comment", "obj_info"}:
+                continue
+            if parts[0] == "end_header":
+                break
+            if parts[0] == "format" and len(parts) == 3:
+                ply_format = parts[1]
+            elif parts[0] == "element" and len(parts) == 3:
+                in_vertex_element = parts[1] == "vertex"
+                if in_vertex_element:
+                    vertex_count = int(parts[2])
+            elif parts[0] == "property" and in_vertex_element:
+                if len(parts) != 3 or parts[1] not in PLY_SCALAR_DTYPES:
+                    raise ValueError(f"Unsupported PLY vertex property: {' '.join(parts)}")
+                vertex_properties.append((parts[2], parts[1]))
 
-        point_cloud = o3d.io.read_point_cloud(str(path))
-        points = np.asarray(point_cloud.points, dtype=np.float32)
-        if points.ndim == 2 and points.shape[0] > 0 and points.shape[1] == 3:
-            return points
-    except Exception:
-        pass
-
-    try:
-        import trimesh
-
-        loaded = trimesh.load(str(path), process=False)
-        if isinstance(loaded, trimesh.Scene):
-            geometries = [
-                geom for geom in loaded.geometry.values() if hasattr(geom, "vertices")
-            ]
-            if not geometries:
-                raise ValueError(f"No PLY geometry found in scene: {path}")
-            loaded = trimesh.util.concatenate(geometries)
-        if hasattr(loaded, "vertices") and len(loaded.vertices) > 0:
-            return np.asarray(loaded.vertices, dtype=np.float32)
-    except Exception:
-        pass
-
-    return load_ascii_ply_points(path)
+        if vertex_count is None:
+            raise ValueError(f"PLY vertex count not found: {path}")
+        if ply_format == "ascii":
+            return load_ascii_ply_points(path)
+        byte_order = {"binary_little_endian": "<", "binary_big_endian": ">"}.get(
+            ply_format
+        )
+        if byte_order is None:
+            raise ValueError(f"Unsupported PLY format {ply_format!r}: {path}")
+        names = [name for name, _ in vertex_properties]
+        missing = [axis for axis in ("x", "y", "z") if axis not in names]
+        if missing:
+            raise ValueError(f"PLY vertex properties missing {missing}: {path}")
+        dtype = np.dtype(
+            [(name, byte_order + PLY_SCALAR_DTYPES[kind]) for name, kind in vertex_properties]
+        )
+        vertices = np.fromfile(f, dtype=dtype, count=vertex_count)
+        if len(vertices) != vertex_count:
+            raise ValueError(f"Unexpected EOF in binary PLY vertices: {path}")
+        return np.column_stack([vertices[axis] for axis in ("x", "y", "z")]).astype(
+            np.float32, copy=False
+        )
 
 
 def load_ascii_ply_points(path):
@@ -436,7 +497,13 @@ def build_co3d(args):
     if args.skip_existing and args.overwrite:
         raise ValueError("--skip_existing and --overwrite cannot be used together")
 
-    categories = parse_categories(args.categories)
+    if getattr(args, "cross_classes_only", False) and args.categories:
+        raise ValueError("--cross_classes_only and --categories cannot be used together")
+    categories = (
+        parse_cross_categories()
+        if getattr(args, "cross_classes_only", False)
+        else parse_categories(args.categories)
+    )
     logger.info(f"CO3D categories: {', '.join(categories)}")
     results = []
     for category in categories:
@@ -450,6 +517,7 @@ def parse_args():
     parser.add_argument("--co3d_root", required=True)
     parser.add_argument("--out_root", required=True)
     parser.add_argument("--categories", default=None)
+    parser.add_argument("--cross_classes_only", action="store_true")
     parser.add_argument("--num_points", type=int, default=1024)
     parser.add_argument("--train_ratio", type=float, default=0.8)
     parser.add_argument("--workers", type=int, default=4)
