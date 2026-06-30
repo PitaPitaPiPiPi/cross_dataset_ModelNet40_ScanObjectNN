@@ -238,6 +238,223 @@ def save_split_manifest(out_root, category, split_map, split_source, seed, train
         json.dump(manifest, f, ensure_ascii=False, indent=2)
 
 
+def split_map_from_output_files(out_root, category):
+    category_dir = Path(out_root) / "CO3D" / category
+    return {
+        split: sorted(path.stem for path in (category_dir / split).glob("*.npy"))
+        for split in ("train", "test")
+    }
+
+
+def manifest_expected_names(split_map):
+    expected = {}
+    for split in ("train", "test"):
+        expected[split] = {safe_name(name) for name in split_map.get(split, [])}
+    return expected
+
+
+def manifest_skip_report(category, expected_split_map, output_split_map):
+    expected = manifest_expected_names(expected_split_map or {})
+    output = {split: set(output_split_map.get(split, [])) for split in ("train", "test")}
+    skipped_by_split = {
+        split: sorted(expected[split] - output[split]) for split in ("train", "test")
+    }
+    expected_count = sum(len(values) for values in expected.values())
+    output_count = sum(len(values) for values in output.values())
+    skipped_count = sum(len(values) for values in skipped_by_split.values())
+    return {
+        "category": category,
+        "expected_count": expected_count,
+        "output_count": output_count,
+        "skipped_missing_output_count": skipped_count,
+        "skipped_missing_output_by_split": skipped_by_split,
+    }
+
+
+def save_split_manifest_from_outputs(
+    out_root,
+    category,
+    split_source,
+    seed,
+    train_ratio,
+    expected_split_map=None,
+    logger=None,
+):
+    manifest_path = Path(out_root) / "CO3D" / "split_manifest.json"
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest = load_existing_manifest(manifest_path)
+    manifest["seed"] = seed
+    manifest["train_ratio"] = train_ratio
+    manifest["manifest_source"] = "rebuilt_from_existing_npy_outputs"
+
+    output_split_map = split_map_from_output_files(out_root, category)
+    report = manifest_skip_report(category, expected_split_map, output_split_map)
+    manifest["categories"][category] = {
+        "split_source": split_source,
+        "manifest_source": "existing_npy_outputs",
+        "train": output_split_map.get("train", []),
+        "test": output_split_map.get("test", []),
+    }
+    with open(manifest_path, "w", encoding="utf-8") as f:
+        json.dump(manifest, f, ensure_ascii=False, indent=2)
+
+    if logger and report["skipped_missing_output_count"]:
+        logger.warning(
+            "CO3D %s: skipped %d manifest entries without output files "
+            "(expected=%d output=%d)",
+            category,
+            report["skipped_missing_output_count"],
+            report["expected_count"],
+            report["output_count"],
+        )
+    return report
+
+
+def output_categories(out_root):
+    co3d_root = Path(out_root) / "CO3D"
+    if not co3d_root.is_dir():
+        return []
+    return sorted(
+        path.name
+        for path in co3d_root.iterdir()
+        if path.is_dir()
+        and (any((path / "train").glob("*.npy")) or any((path / "test").glob("*.npy")))
+    )
+
+
+def rebuild_split_manifest_from_outputs(
+    out_root,
+    seed=None,
+    train_ratio=None,
+    categories=None,
+    report_path=None,
+    validate_num_points=None,
+    logger=None,
+):
+    manifest_path = Path(out_root) / "CO3D" / "split_manifest.json"
+    old_manifest = load_existing_manifest(manifest_path)
+    if categories is None:
+        category_names = sorted(
+            set(output_categories(out_root)) | set(old_manifest.get("categories", {}))
+        )
+    else:
+        category_names = sorted(set(categories))
+
+    manifest = {
+        "dataset": "CO3D",
+        "split_unit": "sequence",
+        "manifest_source": "rebuilt_from_existing_npy_outputs",
+        "categories": {},
+    }
+    if seed is not None:
+        manifest["seed"] = seed
+    elif "seed" in old_manifest:
+        manifest["seed"] = old_manifest["seed"]
+    if train_ratio is not None:
+        manifest["train_ratio"] = train_ratio
+    elif "train_ratio" in old_manifest:
+        manifest["train_ratio"] = old_manifest["train_ratio"]
+
+    report = {
+        "manifest": str(manifest_path),
+        "categories": {},
+        "total_output_count": 0,
+        "total_skipped_missing_output_count": 0,
+        "shape_bad_count": 0,
+        "finite_bad_count": 0,
+        "shape_bad": [],
+        "finite_bad": [],
+    }
+
+    expected_shape = None
+    if validate_num_points is not None:
+        expected_shape = (int(validate_num_points), 3)
+
+    for category in category_names:
+        output_split_map = split_map_from_output_files(out_root, category)
+        output_count = sum(len(output_split_map.get(split, [])) for split in ("train", "test"))
+        old_entry = old_manifest.get("categories", {}).get(category, {})
+        expected_split_map = {
+            "train": old_entry.get("train", []),
+            "test": old_entry.get("test", []),
+        }
+        skip_report = manifest_skip_report(category, expected_split_map, output_split_map)
+        if output_count == 0:
+            if skip_report["expected_count"]:
+                report["categories"][category] = skip_report
+                report["total_skipped_missing_output_count"] += skip_report[
+                    "skipped_missing_output_count"
+                ]
+            continue
+
+        split_source = old_entry.get("split_source", "existing_outputs")
+        manifest["categories"][category] = {
+            "split_source": split_source,
+            "manifest_source": "existing_npy_outputs",
+            "train": output_split_map.get("train", []),
+            "test": output_split_map.get("test", []),
+        }
+
+        if expected_shape is not None:
+            category_dir = Path(out_root) / "CO3D" / category
+            for split in ("train", "test"):
+                for output_path in sorted((category_dir / split).glob("*.npy")):
+                    try:
+                        points = np.load(output_path, mmap_mode="r")
+                        if points.shape != expected_shape:
+                            report["shape_bad"].append(
+                                {
+                                    "category": category,
+                                    "path": str(output_path),
+                                    "shape": list(points.shape),
+                                }
+                            )
+                        elif not np.isfinite(np.asarray(points)).all():
+                            report["finite_bad"].append(
+                                {"category": category, "path": str(output_path)}
+                            )
+                    except Exception as exc:
+                        report["shape_bad"].append(
+                            {"category": category, "path": str(output_path), "error": str(exc)}
+                        )
+
+        report["categories"][category] = skip_report
+        report["total_output_count"] += output_count
+        report["total_skipped_missing_output_count"] += skip_report[
+            "skipped_missing_output_count"
+        ]
+
+    report["shape_bad_count"] = len(report["shape_bad"])
+    report["finite_bad_count"] = len(report["finite_bad"])
+
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(manifest_path, "w", encoding="utf-8") as f:
+        json.dump(manifest, f, ensure_ascii=False, indent=2)
+
+    if report_path:
+        report_path = Path(report_path)
+        report_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(report_path, "w", encoding="utf-8") as f:
+            json.dump(report, f, ensure_ascii=False, indent=2)
+
+    if logger:
+        logger.info(
+            "Rebuilt CO3D manifest from outputs: categories=%d outputs=%d skipped_missing_output=%d",
+            len(manifest["categories"]),
+            report["total_output_count"],
+            report["total_skipped_missing_output_count"],
+        )
+        for category, category_report in report["categories"].items():
+            skipped = category_report["skipped_missing_output_count"]
+            if skipped:
+                logger.warning(
+                    "CO3D %s: skipped %d metadata/manifest entries without output files",
+                    category,
+                    skipped,
+                )
+    return report
+
+
 def load_ply_points(path):
     with open(path, "rb") as f:
         if f.readline().rstrip(b"\r\n") != b"ply":
@@ -448,15 +665,6 @@ def build_category(category, args):
             sequences.keys(), category, args.train_ratio, args.seed
         )
 
-    save_split_manifest(
-        args.out_root,
-        category,
-        split_map,
-        split_source,
-        args.seed,
-        args.train_ratio,
-    )
-
     tasks = []
     for split in ("train", "test"):
         for sequence_name in split_map.get(split, []):
@@ -481,6 +689,16 @@ def build_category(category, args):
     failures = [res for res in results if not res.get("ok")]
     if failures:
         raise RuntimeError(f"Failed to process {len(failures)} CO3D samples in {category}")
+
+    save_split_manifest_from_outputs(
+        args.out_root,
+        category,
+        split_source,
+        args.seed,
+        args.train_ratio,
+        expected_split_map=split_map,
+        logger=logger,
+    )
 
     skipped = sum(1 for res in results if res.get("skipped"))
     if skipped:
@@ -509,6 +727,12 @@ def build_co3d(args):
     for category in categories:
         results.append(build_category(category, args))
     processed = sum(result["processed"] for result in results)
+    rebuild_split_manifest_from_outputs(
+        args.out_root,
+        seed=args.seed,
+        train_ratio=args.train_ratio,
+        logger=logger,
+    )
     logger.info(f"CO3D done: processed={processed}")
 
 

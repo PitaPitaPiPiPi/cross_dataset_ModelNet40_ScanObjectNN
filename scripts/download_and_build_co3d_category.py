@@ -10,7 +10,12 @@ from pathlib import Path
 
 import numpy as np
 
-from scripts.build_co3d import build_category, parse_categories, parse_cross_categories
+from scripts.build_co3d import (
+    build_category,
+    parse_categories,
+    parse_cross_categories,
+    rebuild_split_manifest_from_outputs,
+)
 from scripts.utils.logger import get_logger
 
 
@@ -83,10 +88,18 @@ def remove_category_output(out_root, category):
 
 
 def downloader_path(co3d_repo):
-    path = Path(co3d_repo) / "co3d" / "download_dataset.py"
-    if not path.exists():
-        raise FileNotFoundError(f"CO3D downloader not found: {path}")
-    return path
+    co3d_repo = Path(co3d_repo)
+    candidates = [
+        co3d_repo / "co3d" / "download_dataset.py",  # CO3Dv2 branch layout
+        co3d_repo / "download_dataset.py",  # CO3Dv1 branch layout
+    ]
+    for path in candidates:
+        if path.exists():
+            return path
+    raise FileNotFoundError(
+        "CO3D downloader not found. Tried: "
+        + ", ".join(str(path) for path in candidates)
+    )
 
 
 def downloader_help(co3d_repo):
@@ -118,6 +131,7 @@ def detect_downloader_options(co3d_repo):
         "has_single_sequence_subset": "--single_sequence_subset" in help_text,
         "has_clear_archives_after_unpacking": "--clear_archives_after_unpacking" in help_text,
         "has_redownload_existing_archives": "--redownload_existing_archives" in help_text,
+        "has_checksum_check": "--checksum_check" in help_text,
     }
 
 
@@ -144,6 +158,11 @@ def run_downloader(args, category, downloader_options):
             logger.warning("Downloader help does not expose --clear_archives_after_unpacking.")
     if downloader_options["has_redownload_existing_archives"]:
         cmd.append("--redownload_existing_archives")
+    if args.checksum_check:
+        if downloader_options["has_checksum_check"]:
+            cmd.append("--checksum_check")
+        else:
+            logger.warning("Downloader help does not expose --checksum_check.")
 
     logger.info(f"Download CO3D: category={category}")
     subprocess.run(cmd, check=True)
@@ -198,6 +217,14 @@ def cleanup_targets(download_folder, category):
     root = Path(download_folder)
     targets = []
     category_lower = category.lower()
+
+    def is_category_name(name):
+        name = name.lower()
+        return (
+            name == category_lower
+            or name.startswith(f"{category_lower}_")
+            or name.startswith(f"{category_lower}.")
+        )
     category_dir = root / category
     if category_dir.exists():
         targets.append(category_dir)
@@ -207,7 +234,7 @@ def cleanup_targets(download_folder, category):
             name = child.name.lower()
             is_category_archive = (
                 child.is_file()
-                and category_lower in name
+                and is_category_name(name)
                 and child.suffix.lower() in ARCHIVE_SUFFIXES
             )
             if is_category_archive:
@@ -221,7 +248,7 @@ def cleanup_targets(download_folder, category):
         if direct.exists():
             targets.append(direct)
         for child in in_progress.iterdir():
-            if category_lower in child.name.lower():
+            if is_category_name(child.name):
                 targets.append(child)
 
     deduped = []
@@ -259,16 +286,7 @@ def handle_failure(args, category, exc, summary):
     logger.exception(f"Failed category {category}: {exc}")
     summary["failed"].append(category)
 
-    if args.force_cleanup_on_error and not args.no_cleanup_raw:
-        try:
-            if cleanup_raw(args, category):
-                summary["cleaned"].append(category)
-            else:
-                summary["kept_raw"].append(category)
-        except Exception as cleanup_exc:
-            logger.exception(f"Cleanup failed for {category}: {cleanup_exc}")
-            summary["kept_raw"].append(category)
-    else:
+    if args.no_cleanup_raw or args.download_only:
         logger.info(f"Keep raw after failure: {category}")
         summary["kept_raw"].append(category)
 
@@ -284,9 +302,15 @@ def process_one(args, category, downloader_options_cache, summary):
     elif args.skip_existing and category_output_exists(args.out_root, category):
         logger.info(f"Skip existing output: {category}")
         summary["skipped"].append(category)
+        if not args.no_cleanup_raw and not args.download_only:
+            try:
+                if cleanup_raw(args, category):
+                    summary["cleaned"].append(category)
+            except Exception as cleanup_exc:
+                logger.exception(f"Cleanup failed for {category}: {cleanup_exc}")
+                summary["kept_raw"].append(category)
         return
 
-    downloaded_or_present = False
     try:
         if not args.process_only:
             if category_downloaded(args.download_folder, category):
@@ -294,7 +318,6 @@ def process_one(args, category, downloader_options_cache, summary):
             else:
                 downloader_options = get_downloader_options(args, downloader_options_cache)
                 run_downloader(args, category, downloader_options)
-            downloaded_or_present = True
 
         if args.download_only:
             logger.info(f"Download only: keep raw {category}")
@@ -306,17 +329,21 @@ def process_one(args, category, downloader_options_cache, summary):
         sample_count = validate_category_output(args.out_root, category, args.num_points)
         logger.info(f"Validated category {category}: {sample_count} samples")
         summary["succeeded"].append(category)
-
-        if args.no_cleanup_raw:
-            logger.info(f"Keep raw: {category}")
-            summary["kept_raw"].append(category)
-        elif downloaded_or_present or args.process_only:
-            if cleanup_raw(args, category):
-                summary["cleaned"].append(category)
-            else:
-                summary["kept_raw"].append(category)
     except Exception as exc:
         handle_failure(args, category, exc, summary)
+    finally:
+        # Keep peak disk usage bounded to one category. Cleanup is also
+        # attempted after failures before the next category is downloaded.
+        if not args.no_cleanup_raw and not args.download_only:
+            try:
+                if cleanup_raw(args, category):
+                    summary["cleaned"].append(category)
+            except Exception as cleanup_exc:
+                logger.exception(f"Cleanup failed for {category}: {cleanup_exc}")
+                summary["kept_raw"].append(category)
+        elif args.no_cleanup_raw and category not in summary["kept_raw"]:
+            logger.info(f"Keep raw: {category}")
+            summary["kept_raw"].append(category)
 
 
 def log_summary(args, summary):
@@ -354,6 +381,16 @@ def run(args):
     for category in categories:
         process_one(args, category, downloader_options_cache, summary)
 
+    if not args.download_only:
+        rebuild_split_manifest_from_outputs(
+            args.out_root,
+            seed=args.seed,
+            train_ratio=0.8,
+            report_path=Path(args.out_root) / "co3d_manifest_rebuild_report.json",
+            validate_num_points=args.num_points,
+            logger=logger,
+        )
+
     log_summary(args, summary)
     if summary["failed"]:
         logger.warning("Some categories failed. Re-run with --strict to stop on first failure.")
@@ -378,11 +415,16 @@ def parse_args():
     parser.add_argument("--process_only", action="store_true")
     parser.add_argument("--cleanup_raw", dest="no_cleanup_raw", action="store_false", default=False)
     parser.add_argument("--no_cleanup_raw", dest="no_cleanup_raw", action="store_true")
-    parser.add_argument("--force_cleanup_on_error", action="store_true")
+    parser.add_argument(
+        "--force_cleanup_on_error",
+        action="store_true",
+        help="Deprecated: cleanup after errors is now the default unless --no_cleanup_raw is used.",
+    )
     parser.add_argument("--single_sequence_subset", action="store_true", default=False)
     parser.add_argument("--no_single_sequence_subset", dest="single_sequence_subset", action="store_false")
     parser.add_argument("--strict", action="store_true")
     parser.add_argument("--clear_archives_after_unpacking", action="store_true")
+    parser.add_argument("--checksum_check", action="store_true")
     return parser.parse_args()
 
 

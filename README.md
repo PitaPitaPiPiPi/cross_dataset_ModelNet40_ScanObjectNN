@@ -273,9 +273,10 @@ python -m scripts.download_and_build_co3d_category \
 - 対象は `--category` / `--categories` / `--all_categories` / `--cross_classes_only` のどれか 1 つ
 - `download_dataset.py --help` を見て、category 指定可能な downloader だけを使う
 - category 指定不能なら一括 download はしない
-- preprocess 成功後のみ raw subset を削除する
-- preprocess 失敗時は raw を残す
-- `--force_cleanup_on_error` があるときだけ失敗時 cleanup を許可する
+- 各 category の download と preprocess が終わるたびに、その category の raw subset と archive を削除してから次へ進む
+- download または preprocess が失敗した場合も、次の category を取得する前に途中データを削除する
+- raw を保持する場合は `--no_cleanup_raw` を指定する（`--download_only` でも保持する）
+- `--force_cleanup_on_error` は後方互換のため受理するが、cleanup は既定動作になっている
 - `outputs/CO3D/<category>` は削除しない
 
 主な CLI オプション:

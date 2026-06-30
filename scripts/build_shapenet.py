@@ -159,7 +159,83 @@ def save_split_manifest(out_root, manifest):
         json.dump(manifest, f, ensure_ascii=False, indent=2)
 
 
-def load_mesh_points(path, sample_surface_n):
+def sample_obj_surface(vertices, triangles, sample_surface_n, seed, path):
+    triangle_vertices = vertices[triangles]
+    first_edges = triangle_vertices[:, 1] - triangle_vertices[:, 0]
+    second_edges = triangle_vertices[:, 2] - triangle_vertices[:, 0]
+    areas = np.linalg.norm(np.cross(first_edges, second_edges), axis=1) * 0.5
+    valid = np.isfinite(areas) & (areas > 0)
+    if not valid.any():
+        return vertices
+
+    triangle_vertices = triangle_vertices[valid]
+    probabilities = areas[valid].astype(np.float64)
+    probabilities /= probabilities.sum()
+    path_seed = int(hashlib.sha1(str(path).encode("utf-8")).hexdigest()[:8], 16)
+    rng = np.random.default_rng(seed + path_seed)
+    selected = triangle_vertices[
+        rng.choice(len(triangle_vertices), size=sample_surface_n, p=probabilities)
+    ]
+    first_random = np.sqrt(rng.random(sample_surface_n))[:, None]
+    second_random = rng.random(sample_surface_n)[:, None]
+    points = (
+        (1.0 - first_random) * selected[:, 0]
+        + first_random * (1.0 - second_random) * selected[:, 1]
+        + first_random * second_random * selected[:, 2]
+    )
+    return points.astype(np.float32)
+
+
+def load_obj_points(path, sample_surface_n, seed):
+    vertices = []
+    triangles = []
+    with open(path, "r", encoding="utf-8", errors="ignore") as f:
+        for line_number, line in enumerate(f, start=1):
+            text = line.strip()
+            if not text or text.startswith("#"):
+                continue
+            parts = text.split()
+            if parts[0] == "v":
+                if len(parts) < 4:
+                    raise ValueError(f"Invalid OBJ vertex at line {line_number}: {path}")
+                try:
+                    vertices.append([float(parts[1]), float(parts[2]), float(parts[3])])
+                except ValueError as exc:
+                    raise ValueError(
+                        f"Invalid OBJ vertex values at line {line_number}: {path}"
+                    ) from exc
+            elif parts[0] == "f" and len(parts) >= 4:
+                face = []
+                try:
+                    for token in parts[1:]:
+                        raw_index = token.split("/", 1)[0]
+                        if not raw_index:
+                            raise ValueError("missing vertex index")
+                        index = int(raw_index)
+                        index = index - 1 if index > 0 else len(vertices) + index
+                        if index < 0 or index >= len(vertices):
+                            raise ValueError(f"vertex index out of range: {raw_index}")
+                        face.append(index)
+                except ValueError as exc:
+                    raise ValueError(
+                        f"Invalid OBJ face at line {line_number}: {path}: {exc}"
+                    ) from exc
+                for offset in range(1, len(face) - 1):
+                    triangles.append([face[0], face[offset], face[offset + 1]])
+
+    if not vertices:
+        raise ValueError(f"No vertices found in OBJ: {path}")
+    vertices = np.asarray(vertices, dtype=np.float32)
+    if not triangles:
+        return vertices
+    triangles = np.asarray(triangles, dtype=np.int64)
+    return sample_obj_surface(vertices, triangles, sample_surface_n, seed, path)
+
+
+def load_mesh_points(path, sample_surface_n, seed):
+    if Path(path).suffix.lower() == ".obj":
+        return load_obj_points(path, sample_surface_n, seed)
+
     import trimesh
 
     loaded = trimesh.load(str(path), process=True)
@@ -252,10 +328,10 @@ def load_ply_points(path, sample_surface_n):
     return load_ascii_ply_points(path)
 
 
-def load_points(path, sample_surface_n):
+def load_points(path, sample_surface_n, seed):
     ext = Path(path).suffix.lower()
     if ext in {".obj", ".off"}:
-        return load_mesh_points(path, sample_surface_n), ext[1:]
+        return load_mesh_points(path, sample_surface_n, seed), ext[1:]
     if ext == ".ply":
         return load_ply_points(path, sample_surface_n), "ply"
     if ext == ".npy":
@@ -298,7 +374,9 @@ def process_one_sample(task):
         return {"ok": True, "skipped": True, "out": out_npy}
 
     try:
-        points, source_format = load_points(task["src"], task["sample_surface_n"])
+        points, source_format = load_points(
+            task["src"], task["sample_surface_n"], task["seed"]
+        )
         points = sanitize_points(
             points,
             task["num_points"],

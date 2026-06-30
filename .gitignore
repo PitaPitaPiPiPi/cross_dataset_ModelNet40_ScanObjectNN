@@ -24,3 +24,5 @@ external/co3d/
 .micromamba/
 
 .vscode/
+raw_datasets/*
+manifests/*
